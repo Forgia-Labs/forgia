@@ -7,122 +7,123 @@
   ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═╝  ╚═╝
 ```
 
-> Forgia le spec in codice. Framework spec-driven per agenti AI.
+> Forge specs into code. Spec-driven development framework for AI agents.
 
-Forgia e' un framework SDD (Spec-Driven Development) che trasforma decisioni di design in contratti di esecuzione per agenti autonomi.
+Forgia is an opinionated SDD (Spec-Driven Development) framework that turns human design decisions into execution contracts for autonomous agents.
 
-## Il Modello
+## The Model
 
 ```
-Tu ──→ FD (cosa e perche') ──→ SDD (come, per agenti) ──→ Agente ──→ Codice
-        design funzionale         contratto di esecuzione     OpenHands
-        1 per feature             N per FD                    Claude Code
+You ──→ FD (what & why) ──→ SDD (how, for agents) ──→ Agent ──→ Code
+         functional            execution contract        OpenHands
+         design                agent-ready prompt        Claude Code
+         1 per feature         N per FD                  parallel
 ```
 
-| Layer | Chi | Cosa |
+| Layer | Who | What |
 |-------|-----|------|
-| **FD** (Feature Design) | Umano + AI | Architettura, trade-off, interfacce |
-| **SDD** (Spec-Driven Dev) | AI genera, umano approva | Scope, vincoli, test, acceptance criteria |
-| **Constitution** | Umano | Regole immutabili del progetto |
-| **Codice** | Agente | Implementazione guidata dall'SDD |
+| **FD** (Feature Design) | Human + AI | Architecture, trade-offs, interfaces |
+| **SDD** (Spec-Driven Dev) | AI generates, human approves | Scope, constraints, tests, acceptance criteria |
+| **Constitution** | Human | Immutable project rules |
+| **Code** | Agent | Implementation guided by SDD |
 
 ## Quick Start
 
 ```bash
-# Prerequisiti: mise, docker
+# Prerequisites: mise, docker
 git clone git@github.com:Deepzima/forgia.git
 cd forgia
 
-# Installa i comandi Claude Code
+# Install Claude Code commands
 mise run claude:install
 
-# Installa il runtime OpenHands
+# Install OpenHands runtime
 mise run openhands:install
 
-# Inizializza un progetto
+# Initialize a new project
 cd /path/to/your/project
 forgia init
 ```
 
-## Struttura Vault
+## Vault Structure
 
-Dopo `forgia init`, il tuo progetto ottiene:
+After `forgia init`, your project gets:
 
 ```
-tuo-progetto/
+your-project/
   .forgia/
-    constitution.md         # regole immutabili
-    _dashboard.md           # panoramica Obsidian dataview
-    fd/                     # Feature Design
-    sdd/                    # Execution Spec (agent-ready)
-    ops/                    # Task operative
-    dev-guide/              # Convenzioni
+    constitution.md         # immutable project rules
+    _dashboard.md           # Obsidian dataview overview
+    fd/                     # Feature Designs
+    sdd/                    # Execution Specs (agent-ready)
+    ops/                    # Operational tasks
+    dev-guide/              # Conventions
 ```
 
-## Incantesimi
+## Incantesimi (Spells)
 
-> I comandi di Forgia — slash commands per Claude Code.
+> Forgia's commands — Claude Code slash commands.
 
-| Incantesimo | Cosa fa |
-|-------------|---------|
-| `/project-init` | Prepara la fucina — scaffolda il vault `.forgia/` |
-| `/fd-new` | Forgia un nuovo design — crea Feature Design |
-| `/fd-review` | Prova del fuoco — review obbligatoria prima di procedere |
-| `/fd-sdd` | Tempra le spec — genera N SDD dal FD approvato |
-| `/fd-deep` | Analisi profonda — 4 agenti esplorano il problema in parallelo |
-| `/fd-explore` | Studia il pezzo — carica contesto di un FD |
-| `/fd-verify` | Collaudo — verifica implementazione vs spec |
-| `/fd-close` | Sigilla l'opera — archivia FD completato, retrospettiva |
-| `/fd-status` | Stato della fucina — dashboard FD + SDD |
-| `/sdd-assign` | Assegna il lavoro — manda un SDD a un agente |
-| `/sdd-status` | Stato degli agenti — progresso esecuzione SDD |
+| Incantesimo | What it does |
+|-------------|--------------|
+| `/project-init` | Prepare the forge — scaffold the `.forgia/` vault |
+| `/fd-new` | Forge a new design — create a Feature Design |
+| `/fd-review` | Trial by fire — mandatory review gate |
+| `/fd-sdd` | Temper the specs — generate N SDDs from an approved FD |
+| `/fd-deep` | Deep analysis — 4 agents explore the problem in parallel |
+| `/fd-explore` | Study the piece — load FD context |
+| `/fd-verify` | Quality check — verify implementation vs spec |
+| `/fd-close` | Seal the work — archive completed FD + retrospective |
+| `/fd-status` | Forge status — FD + SDD dashboard |
+| `/sdd-assign` | Assign the work — send an SDD to an agent |
+| `/sdd-status` | Agent status — SDD execution progress |
 
-## Attrezzi della Fucina
+## Attrezzi della Fucina (Forge Tools)
 
-> Task mise per gestire l'infrastruttura.
+> Mise tasks for infrastructure management.
 
-| Attrezzo | Cosa fa |
-|----------|---------|
-| `mise run init` | Scaffolda il vault nel progetto corrente |
-| `mise run openhands:install` | Scarica il container OpenHands |
-| `mise run openhands:up` | Accendi la fucina — avvia OpenHands su :3000 |
-| `mise run openhands:down` | Spegni la fucina |
-| `mise run sdd <file>` | Esegui un SDD con OpenHands headless |
-| `mise run sdd:batch FD-001` | Esegui tutti gli SDD di un FD in parallelo |
-| `mise run status` | Dashboard di tutti FD + SDD |
-| `mise run doctor` | Controllo salute (docker, openhands, vault) |
-| `mise run claude:install` | Installa i comandi in Claude Code |
+| Attrezzo | What it does |
+|----------|--------------|
+| `mise run init` | Scaffold vault in current project |
+| `mise run openhands:install` | Pull OpenHands container |
+| `mise run openhands:up` | Light the forge — start OpenHands on :3000 |
+| `mise run openhands:down` | Shut down the forge |
+| `mise run sdd <file>` | Execute an SDD with OpenHands headless |
+| `mise run sdd:batch FD-001` | Execute all SDDs for an FD in parallel |
+| `mise run status` | Dashboard of all FD + SDD |
+| `mise run doctor` | Health check (docker, openhands, vault) |
+| `mise run claude:install` | Install commands in Claude Code |
 
-## Diario di Lavoro (Work Log)
+## Work Log
 
-Ogni SDD include un Diario di Lavoro obbligatorio:
+Every SDD includes a mandatory Work Log section:
 
 ```markdown
 ## Work Log
-### Agente
-- chi ha eseguito, quando, durata
-### Decisioni
-- deviazioni dal piano, problemi incontrati
+### Agent
+- who executed, when, duration
+### Decisions
+- deviations from plan, problems encountered
 ### Output
-- commit hash, PR link, file creati/modificati
-### Retrospettiva
-- cosa ha funzionato, cosa no, suggerimenti per FD futuri
+- commit hash, PR link, files created/modified
+### Retrospective
+- what worked, what didn't, suggestions for future FDs
 ```
 
-## Agenti
+## Agent Backends
 
-| Agente | Quando |
-|--------|--------|
-| **Claude Code** | Interattivo, sei alla tastiera |
-| **OpenHands** | Autonomo, N agenti in container paralleli |
-| **Manuale** | Leggi l'SDD e implementi tu |
+| Agent | When |
+|-------|------|
+| **Claude Code** | Interactive, you're at the keyboard |
+| **OpenHands** | Autonomous, N agents in parallel containers |
+| **Manual** | You read the SDD and implement yourself |
 
-## Ispirato da
+## Inspired By
 
-- [GitHub Spec Kit](https://github.com/github/spec-kit) — separazione spec/plan, constitution
-- [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) — ruoli multi-agente
-- [OpenHands](https://github.com/OpenHands/OpenHands) — runtime agente sandboxato
+- [GitHub Spec Kit](https://github.com/github/spec-kit) — spec/plan separation, constitution
+- [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) — multi-agent roles
+- [OpenHands](https://github.com/OpenHands/OpenHands) — sandboxed agent runtime
 
-## Licenza
+## License
 
 MIT

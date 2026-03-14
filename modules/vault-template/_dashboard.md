@@ -4,7 +4,7 @@
 
 ## Feature Designs
 
-### In Progress
+### In Progress / In Corso
 
 ```dataview
 TABLE WITHOUT ID
@@ -18,7 +18,7 @@ WHERE status = "in-progress" OR status = "design"
 SORT priority DESC, created ASC
 ```
 
-### In Review
+### In Review / In Revisione
 
 ```dataview
 LIST WITHOUT ID id + " — " + title
@@ -27,7 +27,7 @@ WHERE status = "review" OR (reviewed = false AND status != "planned")
 SORT created ASC
 ```
 
-### Planned
+### Planned / Pianificati
 
 ```dataview
 TABLE WITHOUT ID id AS "ID", title AS "Title", priority AS "P", effort AS "Effort"
@@ -40,7 +40,7 @@ SORT priority DESC
 
 ## Execution Specs (SDD)
 
-### Active
+### Active / Attivi
 
 ```dataview
 TABLE WITHOUT ID
@@ -54,7 +54,7 @@ WHERE status != "done" AND status != "failed"
 SORT fd ASC, id ASC
 ```
 
-### Completed
+### Completed / Completati
 
 ```dataview
 TABLE WITHOUT ID id AS "SDD", fd AS "FD", title AS "Title"
@@ -66,7 +66,7 @@ LIMIT 10
 
 ---
 
-## Active Tasks
+## Active Tasks / Task Attive
 
 ```dataview
 TABLE WITHOUT ID
@@ -81,7 +81,7 @@ SORT priority ASC, due ASC
 
 ---
 
-## Stats
+## Stats / Statistiche
 
 ```dataview
 TABLE WITHOUT ID status AS "Status", length(rows) AS "Count"

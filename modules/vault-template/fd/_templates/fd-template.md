@@ -14,23 +14,24 @@ tags: []
 
 # {{ID}}: {{TITLE}}
 
-## Problema
+## Problem / Problema
 
-<!-- Descrivi il problema o la necessita'. Cosa non funziona? Cosa manca? Perche' serve? -->
+<!-- EN: Describe the problem or need. What's broken? What's missing? Why does this matter? -->
+<!-- IT: Descrivi il problema o la necessita'. Cosa non funziona? Cosa manca? Perche' serve? -->
 
-## Soluzioni Considerate
+## Solutions Considered / Soluzioni Considerate
 
-### Opzione A
-
-- **Pro:**
-- **Contro:**
-
-### Opzione B (scelta)
+### Option A / Opzione A
 
 - **Pro:**
-- **Contro:**
+- **Con / Contro:**
 
-## Architettura
+### Option B (chosen) / Opzione B (scelta)
+
+- **Pro:**
+- **Con / Contro:**
+
+## Architecture / Architettura
 
 ```mermaid
 flowchart TD
@@ -38,34 +39,37 @@ flowchart TD
     B --> C[Step 3]
 ```
 
-## Interfacce
+## Interfaces / Interfacce
 
-<!-- Definisci le interfacce tra i componenti che verranno generati come SDD separati -->
+<!-- EN: Define interfaces between components that will become separate SDDs -->
+<!-- IT: Definisci le interfacce tra i componenti che verranno generati come SDD separati -->
 
-| Componente | Input | Output | Protocollo |
-|------------|-------|--------|------------|
+| Component / Componente | Input | Output | Protocol / Protocollo |
+|------------------------|-------|--------|-----------------------|
 | | | | |
 
-## SDD Previsti
+## Planned SDDs / SDD Previsti
 
-<!-- Quanti SDD verranno generati da questo FD? Uno per componente/servizio -->
+<!-- EN: How many SDDs will be generated from this FD? One per component/service -->
+<!-- IT: Quanti SDD verranno generati da questo FD? Uno per componente/servizio -->
 
-1. SDD-001: <!-- componente 1 -->
-2. SDD-002: <!-- componente 2 -->
+1. SDD-001: <!-- component 1 / componente 1 -->
+2. SDD-002: <!-- component 2 / componente 2 -->
 
-## Vincoli
+## Constraints / Vincoli
 
-- <!-- vincoli tecnici, di tempo, di budget -->
+- <!-- technical, time, budget constraints / vincoli tecnici, di tempo, di budget -->
 
-## Verifica
+## Verification / Verifica
 
-- [ ] Problema chiaramente definito
-- [ ] Almeno 2 soluzioni considerate con pro/contro
-- [ ] Diagramma architetturale presente
-- [ ] Interfacce tra componenti definite
-- [ ] SDD previsti elencati
-- [ ] Review completata (`/fd-review`)
+- [ ] Problem clearly defined / Problema chiaramente definito
+- [ ] At least 2 solutions with pros/cons / Almeno 2 soluzioni con pro/contro
+- [ ] Architecture diagram present / Diagramma architetturale presente
+- [ ] Interfaces defined / Interfacce tra componenti definite
+- [ ] SDDs listed / SDD previsti elencati
+- [ ] Review completed / Review completata (`/fd-review`)
 
-## Note
+## Notes / Note
 
-<!-- Note aggiuntive, link, riferimenti -->
+<!-- EN: Additional notes, links, references -->
+<!-- IT: Note aggiuntive, link, riferimenti -->

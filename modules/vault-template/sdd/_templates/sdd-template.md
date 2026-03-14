@@ -17,28 +17,32 @@ tags: []
 
 ## Scope
 
-<!-- Cosa costruire. Derivato dal FD. Preciso, non ambiguo. -->
+<!-- EN: What to build. Derived from the FD. Precise, unambiguous. -->
+<!-- IT: Cosa costruire. Derivato dal FD. Preciso, non ambiguo. -->
 
-## Interfacce
+## Interfaces / Interfacce
 
-<!-- Input/output, tipi, trait, API endpoint, schema -->
+<!-- EN: Input/output, types, traits, API endpoints, schema -->
+<!-- IT: Input/output, tipi, trait, API endpoint, schema -->
 
-| Interfaccia | Tipo | Descrizione |
-|-------------|------|-------------|
+| Interface / Interfaccia | Type / Tipo | Description / Descrizione |
+|-------------------------|-------------|---------------------------|
 | | | |
 
-## Vincoli
+## Constraints / Vincoli
 
-<!-- Linguaggio, framework, versioni, pattern obbligatori, dipendenze -->
+<!-- EN: Language, framework, versions, required patterns, dependencies -->
+<!-- IT: Linguaggio, framework, versioni, pattern obbligatori, dipendenze -->
 
-- Linguaggio:
+- Language / Linguaggio:
 - Framework:
-- Dipendenze:
-- Pattern:
+- Dependencies / Dipendenze:
+- Patterns / Pattern:
 
 ## Best Practices
 
-<!-- Error handling, naming, style specifici per questo componente -->
+<!-- EN: Error handling, naming, style specific to this component -->
+<!-- IT: Error handling, naming, style specifici per questo componente -->
 
 - Error handling:
 - Naming:
@@ -46,66 +50,72 @@ tags: []
 
 ## Test Requirements
 
-<!-- Cosa testare, coverage atteso, tipi di test -->
+<!-- EN: What to test, expected coverage, test types -->
+<!-- IT: Cosa testare, coverage atteso, tipi di test -->
 
-| Tipo | Cosa | Coverage |
-|------|------|----------|
+| Type / Tipo | What / Cosa | Coverage |
+|-------------|-------------|----------|
 | Unit | | |
 | Integration | | |
 | E2E | | |
 
-## Acceptance Criteria
+## Acceptance Criteria / Criteri di Accettazione
 
-<!-- Quando il lavoro e' "done". Ogni criterio deve essere verificabile. -->
+<!-- EN: When the work is "done". Each criterion must be verifiable. -->
+<!-- IT: Quando il lavoro e' "done". Ogni criterio deve essere verificabile. -->
 
-- [ ] <!-- criterio 1 -->
-- [ ] <!-- criterio 2 -->
-- [ ] <!-- criterio 3 -->
+- [ ] <!-- criterion 1 / criterio 1 -->
+- [ ] <!-- criterion 2 / criterio 2 -->
+- [ ] <!-- criterion 3 / criterio 3 -->
 
-## Contesto
+## Context / Contesto
 
-<!-- File da leggere, doc da consultare, codice esistente da capire -->
+<!-- EN: Files to read, docs to consult, existing code to understand -->
+<!-- IT: File da leggere, doc da consultare, codice esistente da capire -->
 
 - [ ] `path/to/file`
 - [ ] `docs/reference`
 
 ## Constitution Check
 
-<!-- Verifica che questo SDD rispetti la constitution del progetto -->
+<!-- EN: Verify this SDD respects the project constitution -->
+<!-- IT: Verifica che questo SDD rispetti la constitution del progetto -->
 
-- [ ] Rispetta le code standards
-- [ ] Rispetta le commit conventions
-- [ ] Nessun secret hardcoded
-- [ ] Test definiti e sufficienti
+- [ ] Respects code standards / Rispetta le code standards
+- [ ] Respects commit conventions / Rispetta le commit conventions
+- [ ] No hardcoded secrets / Nessun secret hardcoded
+- [ ] Tests defined and sufficient / Test definiti e sufficienti
 
 ---
 
-## Work Log
+## Work Log / Diario di Lavoro
 
-> Questa sezione e' **obbligatoria**. Deve essere compilata dall'agent o dallo sviluppatore durante e dopo l'esecuzione.
+> EN: This section is **mandatory**. Must be filled by the agent or developer during and after execution.
+> IT: Questa sezione e' **obbligatoria**. Deve essere compilata dall'agent o dallo sviluppatore durante e dopo l'esecuzione.
 
-### Agent
+### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual | nome -->
+- **Executor**: <!-- openhands | claude-code | manual | name -->
 - **Started**: <!-- timestamp -->
 - **Completed**: <!-- timestamp -->
-- **Duration**: <!-- tempo totale -->
+- **Duration / Durata**: <!-- total time -->
 
-### Decisioni Prese
+### Decisions / Decisioni
 
-<!-- Deviazioni dal plan, problemi incontrati, scelte fatte durante l'implementazione -->
+<!-- EN: Deviations from plan, problems encountered, choices made during implementation -->
+<!-- IT: Deviazioni dal piano, problemi incontrati, scelte fatte durante l'implementazione -->
 
-1. <!-- decisione 1: cosa e perche -->
+1. <!-- decision 1: what and why / decisione 1: cosa e perche' -->
 
 ### Output
 
 - **Commit(s)**: <!-- hash -->
 - **PR**: <!-- link -->
-- **File creati/modificati**:
+- **Files created/modified**:
   - `path/to/file`
 
-### Retrospettiva
+### Retrospective / Retrospettiva
 
-- **Cosa ha funzionato**:
-- **Cosa non ha funzionato**:
-- **Suggerimenti per FD futuri**:
+- **What worked / Cosa ha funzionato**:
+- **What didn't / Cosa non ha funzionato**:
+- **Suggestions for future FDs / Suggerimenti per FD futuri**:

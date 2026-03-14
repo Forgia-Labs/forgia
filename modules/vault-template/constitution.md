@@ -1,11 +1,13 @@
 # Constitution
 
-> Immutable project rules. Every FD, SDD, and implementation must respect these principles.
+> EN: Immutable project rules. Every FD, SDD, and implementation must respect these principles.
+> IT: Regole immutabili del progetto. Ogni FD, SDD e implementazione deve rispettare questi principi.
+>
 > Inspired by [GitHub Spec Kit](https://github.com/github/spec-kit).
 
 ---
 
-## Principles
+## Principles / Principi
 
 1. **Spec first, code second** — no implementation without an approved FD and generated SDD
 2. **Fail-closed** — if a gate fails (review, verify), work stops until resolved
@@ -33,5 +35,7 @@
 
 ---
 
-> Edit this file to match your project's specific rules.
+> EN: Edit this file to match your project's specific rules.
+> IT: Modifica questo file con le regole specifiche del tuo progetto.
+>
 > This is loaded by `/fd-review` and `/fd-verify` as the baseline for all checks.

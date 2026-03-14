@@ -14,13 +14,15 @@ tags: []
 
 # OPS-{{ID}}: {{TITLE}}
 
-## Cosa Fare
+## What to Do / Cosa Fare
 
-<!-- Descrivi l'azione concreta -->
+<!-- EN: Describe the concrete action -->
+<!-- IT: Descrivi l'azione concreta -->
 
-## Contesto
+## Context / Contesto
 
-<!-- Perche' serve? Link a FD, SDD, issue -->
+<!-- EN: Why is this needed? Link to FD, SDD, issue -->
+<!-- IT: Perche' serve? Link a FD, SDD, issue -->
 
 ## Checklist
 
@@ -28,10 +30,12 @@ tags: []
 - [ ] Step 2
 - [ ] Step 3
 
-## Output Atteso
+## Expected Output / Output Atteso
 
-<!-- Cosa ci aspettiamo come risultato? -->
+<!-- EN: What do we expect as a result? -->
+<!-- IT: Cosa ci aspettiamo come risultato? -->
 
-## Note
+## Notes / Note
 
-<!-- Annotazioni, risultati, lezioni apprese -->
+<!-- EN: Annotations, results, lessons learned -->
+<!-- IT: Annotazioni, risultati, lezioni apprese -->
