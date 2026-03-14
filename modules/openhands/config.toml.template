@@ -1,0 +1,37 @@
+# Forgia — OpenHands LLM Configuration
+#
+# Copy this file to config.toml and fill in your values.
+# Environment variables take precedence over this file.
+#
+# Supported backends:
+#   - Anthropic Claude (recommended)
+#   - OpenAI GPT
+#   - Local via Ollama/Exo (free, requires local setup)
+
+[llm]
+# Provider: "anthropic", "openai", "ollama"
+provider = "anthropic"
+
+# Model to use for agent execution
+# Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514
+# OpenAI: gpt-4o, gpt-4-turbo
+# Ollama: llama3.1:70b, qwen2.5:32b, etc.
+model = "anthropic/claude-sonnet-4-20250514"
+
+# API key (or set ANTHROPIC_API_KEY / OPENAI_API_KEY env var)
+# api_key = "sk-..."
+
+# For Ollama/Exo local backend
+# base_url = "http://host.docker.internal:11434"
+
+[workspace]
+# Default workspace mount for OpenHands containers
+# mount_path = "/tmp/forgia-workspace"
+
+[agent]
+# Max iterations before the agent stops (safety limit)
+max_iterations = 50
+
+# Auto-approve all actions in headless mode (default: true)
+# Set to false for human-in-the-loop via UI
+auto_approve = true

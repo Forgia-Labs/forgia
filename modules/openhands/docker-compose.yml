@@ -1,0 +1,17 @@
+services:
+  openhands:
+    image: ghcr.io/openhands/openhands:latest
+    container_name: forgia-openhands
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - openhands-state:/opt/openhands/state
+    environment:
+      - LLM_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_MODEL=${FORGIA_LLM_MODEL:-anthropic/claude-sonnet-4-20250514}
+      - WORKSPACE_MOUNT_PATH=${FORGIA_WORKSPACE:-/tmp/forgia-workspace}
+    restart: unless-stopped
+
+volumes:
+  openhands-state:

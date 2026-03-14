@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VAULT_DIR=".forgia"
+
+usage() {
+  cat <<USAGE
+Usage: forgia <command> [arguments]
+
+Commands:
+  init                 Scaffold .forgia/ vault in current project
+  status               Show FD + SDD dashboard
+  doctor               Health check (docker, openhands, vault)
+
+Mise tasks (run via mise):
+  mise run openhands:install    Pull OpenHands container
+  mise run openhands:up         Start OpenHands UI
+  mise run sdd <file>           Execute SDD with OpenHands
+  mise run sdd:batch FD-001     Execute all SDDs for an FD
+  mise run claude:install       Symlink Claude Code commands
+
+USAGE
+}
+
+# --- init ---
+
+cmd_init() {
+  if [[ -d "$VAULT_DIR" ]]; then
+    echo "Warning: $VAULT_DIR already exists"
+    read -rp "Overwrite templates? (y/N) " confirm
+    [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+  fi
+
+  echo "→ Scaffolding $VAULT_DIR/"
+
+  # Create directory structure
+  mkdir -p "$VAULT_DIR"/{fd/_templates,sdd/_templates,ops/{_templates,active,done},dev-guide}
+
+  # Copy templates
+  local tmpl_dir="$ROOT_DIR/modules/vault-template"
+
+  # Constitution
+  if [[ ! -f "$VAULT_DIR/constitution.md" ]]; then
+    cp "$tmpl_dir/constitution.md" "$VAULT_DIR/"
+    echo "  Created: constitution.md"
+  fi
+
+  # Dashboard
+  if [[ ! -f "$VAULT_DIR/_dashboard.md" ]]; then
+    cp "$tmpl_dir/_dashboard.md" "$VAULT_DIR/"
+    echo "  Created: _dashboard.md"
+  fi
+
+  # FD template
+  cp "$tmpl_dir/fd/_templates/fd-template.md" "$VAULT_DIR/fd/_templates/"
+  echo "  Created: fd/_templates/fd-template.md"
+
+  # SDD template
+  cp "$tmpl_dir/sdd/_templates/sdd-template.md" "$VAULT_DIR/sdd/_templates/"
+  echo "  Created: sdd/_templates/sdd-template.md"
+
+  # OPS template
+  cp "$tmpl_dir/ops/_templates/ops-task.md" "$VAULT_DIR/ops/_templates/"
+  echo "  Created: ops/_templates/ops-task.md"
+
+  # Dev guide (always update)
+  cp "$tmpl_dir/dev-guide/"*.md "$VAULT_DIR/dev-guide/" 2>/dev/null || true
+  echo "  Created: dev-guide/"
+
+  echo ""
+  echo "✓ Vault scaffolded at $VAULT_DIR/"
+  echo ""
+  echo "Next steps:"
+  echo "  1. Edit $VAULT_DIR/constitution.md with your project rules"
+  echo "  2. Use /fd-new to create your first Feature Design"
+  echo "  3. Use /fd-review to approve it"
+  echo "  4. Use /fd-sdd to generate execution specs"
+}
+
+# --- status ---
+
+cmd_status() {
+  if [[ ! -d "$VAULT_DIR" ]]; then
+    echo "No $VAULT_DIR found. Run: forgia init"
+    exit 1
+  fi
+
+  echo "=== Forgia Dashboard ==="
+  echo ""
+
+  # FDs
+  echo "--- Feature Designs ---"
+  local fd_count=0
+  for fd in "$VAULT_DIR"/fd/FD-*.md; do
+    [[ -f "$fd" ]] || continue
+    fd_count=$((fd_count + 1))
+    local id title status
+    id="$(grep '^id:' "$fd" | head -1 | sed 's/id: *//')"
+    title="$(grep '^title:' "$fd" | head -1 | sed 's/title: *"*//;s/"*$//')"
+    status="$(grep '^status:' "$fd" | head -1 | sed 's/status: *//')"
+    printf "  %-10s %-12s %s\n" "$id" "[$status]" "$title"
+  done
+  if (( fd_count == 0 )); then
+    echo "  (no FDs yet — use /fd-new to create one)"
+  fi
+  echo ""
+
+  # SDDs
+  echo "--- Execution Specs (SDD) ---"
+  local sdd_count=0
+  for fd_dir in "$VAULT_DIR"/sdd/FD-*/; do
+    [[ -d "$fd_dir" ]] || continue
+    local fd_id
+    fd_id="$(basename "$fd_dir")"
+    for sdd in "$fd_dir"SDD-*.md; do
+      [[ -f "$sdd" ]] || continue
+      sdd_count=$((sdd_count + 1))
+      local sid stitle sstatus sagent
+      sid="$(grep '^id:' "$sdd" | head -1 | sed 's/id: *//')"
+      stitle="$(grep '^title:' "$sdd" | head -1 | sed 's/title: *"*//;s/"*$//')"
+      sstatus="$(grep '^status:' "$sdd" | head -1 | sed 's/status: *//')"
+      sagent="$(grep '^agent:' "$sdd" | head -1 | sed 's/agent: *//')"
+      printf "  %-10s %-10s %-12s %-15s %s\n" "$fd_id" "$sid" "[$sstatus]" "($sagent)" "$stitle"
+    done
+  done
+  if (( sdd_count == 0 )); then
+    echo "  (no SDDs yet — use /fd-sdd after approving an FD)"
+  fi
+  echo ""
+
+  # OPS
+  echo "--- Active Tasks ---"
+  local ops_count=0
+  for ops in "$VAULT_DIR"/ops/active/OPS-*.md; do
+    [[ -f "$ops" ]] || continue
+    ops_count=$((ops_count + 1))
+    local oid otitle
+    oid="$(grep '^id:' "$ops" | head -1 | sed 's/id: *//')"
+    otitle="$(grep '^title:' "$ops" | head -1 | sed 's/title: *"*//;s/"*$//')"
+    printf "  %-10s %s\n" "$oid" "$otitle"
+  done
+  if (( ops_count == 0 )); then
+    echo "  (no active tasks)"
+  fi
+  echo ""
+
+  echo "Summary: $fd_count FDs, $sdd_count SDDs, $ops_count active tasks"
+}
+
+# --- doctor ---
+
+cmd_doctor() {
+  echo "=== Forgia Doctor ==="
+  echo ""
+
+  local ok=0 warn=0 fail=0
+
+  # Check vault
+  if [[ -d "$VAULT_DIR" ]]; then
+    printf "  %-25s OK\n" "vault (.forgia/)"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s MISSING (run: forgia init)\n" "vault (.forgia/)"
+    fail=$((fail + 1))
+  fi
+
+  # Check constitution
+  if [[ -f "$VAULT_DIR/constitution.md" ]]; then
+    printf "  %-25s OK\n" "constitution"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s MISSING\n" "constitution"
+    warn=$((warn + 1))
+  fi
+
+  # Check Docker
+  if command -v docker >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+      printf "  %-25s OK\n" "docker"
+      ok=$((ok + 1))
+    else
+      printf "  %-25s NOT RUNNING\n" "docker"
+      warn=$((warn + 1))
+    fi
+  else
+    printf "  %-25s NOT INSTALLED\n" "docker"
+    fail=$((fail + 1))
+  fi
+
+  # Check OpenHands image
+  if docker image inspect ghcr.io/openhands/openhands:latest >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "openhands image"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT PULLED (run: mise run openhands:install)\n" "openhands image"
+    warn=$((warn + 1))
+  fi
+
+  # Check OpenHands running
+  if docker ps --format '{{.Image}}' 2>/dev/null | grep -q openhands; then
+    printf "  %-25s RUNNING\n" "openhands container"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s STOPPED\n" "openhands container"
+    warn=$((warn + 1))
+  fi
+
+  # Check mise
+  if command -v mise >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "mise"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT INSTALLED\n" "mise"
+    fail=$((fail + 1))
+  fi
+
+  # Check Claude Code commands
+  local cmd_count=0
+  for cmd in "$HOME/.claude/commands"/fd-*.md "$HOME/.claude/commands"/sdd-*.md "$HOME/.claude/commands"/project-init.md; do
+    [[ -f "$cmd" ]] && cmd_count=$((cmd_count + 1))
+  done
+  if (( cmd_count > 0 )); then
+    printf "  %-25s OK (%d commands)\n" "claude-commands" "$cmd_count"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT INSTALLED (run: mise run claude:install)\n" "claude-commands"
+    warn=$((warn + 1))
+  fi
+
+  # Check LLM key
+  if [[ -n "${ANTHROPIC_API_KEY:-}" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
+    printf "  %-25s OK\n" "llm api key"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s MISSING (set ANTHROPIC_API_KEY or OPENAI_API_KEY)\n" "llm api key"
+    warn=$((warn + 1))
+  fi
+
+  echo ""
+  echo "Summary: $ok OK, $warn warnings, $fail failures"
+}
+
+# --- main ---
+
+main() {
+  if [[ $# -lt 1 ]]; then
+    usage
+    exit 1
+  fi
+
+  local cmd="$1"
+  shift || true
+
+  case "$cmd" in
+    init)    cmd_init ;;
+    status)  cmd_status ;;
+    doctor)  cmd_doctor ;;
+    *)       usage; exit 1 ;;
+  esac
+}
+
+main "$@"

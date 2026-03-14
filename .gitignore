@@ -1,0 +1,14 @@
+# OpenHands local config (contains API keys)
+modules/openhands/config.toml
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Obsidian (when used as vault)
+.obsidian/
