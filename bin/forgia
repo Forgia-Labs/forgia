@@ -68,14 +68,49 @@ cmd_init() {
   cp "$tmpl_dir/dev-guide/"*.md "$VAULT_DIR/dev-guide/" 2>/dev/null || true
   echo "  Created: dev-guide/"
 
+  # Language detection — auto-load relevant conventions
+  mkdir -p "$VAULT_DIR/dev-guide/lang"
+  local lang_dir="$tmpl_dir/dev-guide/lang"
+  local detected=()
+
+  if [[ -f "Cargo.toml" ]]; then
+    cp "$lang_dir/rust.md" "$VAULT_DIR/dev-guide/lang/"
+    detected+=("rust")
+  fi
+
+  if [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]] || [[ -f "requirements.txt" ]]; then
+    cp "$lang_dir/python.md" "$VAULT_DIR/dev-guide/lang/"
+    detected+=("python")
+  fi
+
+  if [[ -f "tsconfig.json" ]] || [[ -f "package.json" ]]; then
+    cp "$lang_dir/typescript.md" "$VAULT_DIR/dev-guide/lang/"
+    detected+=("typescript")
+  fi
+
+  if [[ -f "go.mod" ]]; then
+    cp "$lang_dir/go.md" "$VAULT_DIR/dev-guide/lang/"
+    detected+=("go")
+  fi
+
+  # Shell is always included (every project has scripts)
+  cp "$lang_dir/shell.md" "$VAULT_DIR/dev-guide/lang/"
+  detected+=("shell")
+
+  if (( ${#detected[@]} > 0 )); then
+    echo "  Detected languages: ${detected[*]}"
+    echo "  Loaded conventions: dev-guide/lang/{${detected[*]}}.md"
+  fi
+
   echo ""
   echo "✓ Vault scaffolded at $VAULT_DIR/"
   echo ""
   echo "Next steps:"
   echo "  1. Edit $VAULT_DIR/constitution.md with your project rules"
-  echo "  2. Use /fd-new to create your first Feature Design"
-  echo "  3. Use /fd-review to approve it"
-  echo "  4. Use /fd-sdd to generate execution specs"
+  echo "  2. Review $VAULT_DIR/dev-guide/lang/ conventions for your stack"
+  echo "  3. Use /fd-new to create your first Feature Design"
+  echo "  4. Use /fd-review to approve it"
+  echo "  5. Use /fd-sdd to generate execution specs"
 }
 
 # --- status ---

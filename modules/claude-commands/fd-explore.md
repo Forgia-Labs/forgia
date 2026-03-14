@@ -9,7 +9,8 @@ Given FD identifier: $ARGUMENTS
    - `.forgia/dev-guide/coding-conventions.md`
    - `.forgia/dev-guide/commit-conventions.md`
    - `.forgia/dev-guide/review-process.md`
-3. Read the constitution: `.forgia/constitution.md`
+3. Read language-specific conventions from `.forgia/dev-guide/lang/` — load all files present
+4. Read the constitution: `.forgia/constitution.md`
 4. Read any related SDDs in `.forgia/sdd/FD-NNN/` if they exist
 5. Summarize:
    - The FD's current status and what needs to be done
