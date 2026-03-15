@@ -33,10 +33,45 @@ tags: []
 
 ## Architecture / Architettura
 
+<!-- EN: MANDATORY — This diagram must show where this feature integrates in the existing system.
+     Include: existing components (grey), new components (green), data flow, protocols.
+     This is NOT optional — /fd-review will REJECT the FD without a filled diagram. -->
+<!-- IT: OBBLIGATORIO — Questo diagramma deve mostrare dove si integra la feature nel sistema esistente.
+     Includere: componenti esistenti (grigio), nuovi componenti (verde), flusso dati, protocolli.
+     NON e' opzionale — /fd-review RIFIUTERA' il FD senza un diagramma compilato. -->
+
+### Integration Context / Contesto di Integrazione
+
 ```mermaid
 flowchart TD
-    A[Step 1] --> B[Step 2]
-    B --> C[Step 3]
+    subgraph existing ["Existing System / Sistema Esistente"]
+        A[Component A]
+        B[Component B]
+    end
+
+    subgraph new ["New / Nuovo"]
+        C[New Component]
+    end
+
+    A -->|protocol| C
+    C -->|protocol| B
+
+    style existing fill:#f0f0f0,stroke:#999
+    style new fill:#d4edda,stroke:#28a745
+```
+
+### Data Flow / Flusso Dati
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant NewComponent
+    participant ExistingService
+
+    User->>NewComponent: request
+    NewComponent->>ExistingService: call
+    ExistingService-->>NewComponent: response
+    NewComponent-->>User: result
 ```
 
 ## Interfaces / Interfacce

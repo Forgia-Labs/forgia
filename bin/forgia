@@ -368,7 +368,25 @@ cmd_doctor() {
       warn=$((warn + 1))
     fi
   else
-    printf "  %-25s NOT INSTALLED (run: mise run bd:install)\n" "beads (bd)"
+    printf "  %-25s NOT INSTALLED (optional — run: mise run bd:install)\n" "beads (bd)"
+    warn=$((warn + 1))
+  fi
+
+  # Check fswatch (for forgia watch)
+  if command -v fswatch >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "fswatch"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT INSTALLED (optional — brew install fswatch)\n" "fswatch"
+    warn=$((warn + 1))
+  fi
+
+  # Check yq (for YAML SDD validation)
+  if command -v yq >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "yq"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT INSTALLED (optional — brew install yq)\n" "yq"
     warn=$((warn + 1))
   fi
 
