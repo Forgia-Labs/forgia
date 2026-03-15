@@ -26,7 +26,7 @@ if [[ -f "$CONFIG_FILE" ]]; then
 fi
 
 # Extract SDD metadata
-sdd_id=$(grep '^id:' "$SDD_FILE" | head -1 | sed 's/id: *//')
+sdd_id=$(grep '^id:' "$SDD_FILE" | head -1 | sed 's/id: *//;s/"//g')
 sdd_title=$(grep '^title:' "$SDD_FILE" | head -1 | sed 's/title: *"*//;s/"*$//')
 
 echo "=== Forgia Claude Runner ==="
@@ -116,61 +116,28 @@ if [[ "$max_turns" != "0" ]]; then
   claude_args+=(--max-turns "$max_turns")
 fi
 
-echo "→ Launching Claude Code agent (session-isolated)..."
+echo "→ Launching Claude Code agent..."
 echo ""
 
-# Execute via claude CLI — each SDD gets its own isolated session
-# This prevents context pollution between SDDs and saves tokens
+# Execute via claude CLI
 if ! command -v claude >/dev/null 2>&1; then
   echo "Error: 'claude' CLI not found. Install Claude Code first." >&2
   exit 1
 fi
 
-# Session isolation: --no-conversation-history ensures a fresh context
-# Each SDD runs in its own session with only its spec + conventions loaded
-# Check if worktree is possible (needs at least one commit)
-can_worktree="false"
-if [[ "$use_worktree" == "true" ]] && git rev-parse HEAD >/dev/null 2>&1; then
-  can_worktree="true"
-fi
+# Write prompt to temp file to avoid pipe/ARG_MAX issues
+prompt_file=$(mktemp)
+echo "$prompt" > "$prompt_file"
 
-if [[ "$can_worktree" == "true" ]]; then
-  # Create temporary worktree for full git isolation
-  worktree_dir=$(mktemp -d)
-  branch_name="forgia/${sdd_id:-sdd}-$(date +%s)"
+# Run claude with the prompt
+claude "${claude_args[@]}" --print < "$prompt_file"
+exit_code=$?
 
-  echo "  Worktree: $worktree_dir"
-  echo "  Branch:   $branch_name"
+rm -f "$prompt_file"
 
-  git worktree add -b "$branch_name" "$worktree_dir" HEAD 2>/dev/null
-
-  # Write prompt to temp file to avoid pipe/ARG_MAX issues
-  prompt_file=$(mktemp)
-  echo "$prompt" > "$prompt_file"
-  # Run in worktree
-  (cd "$worktree_dir" && claude "${claude_args[@]}" --print < "$prompt_file")
-  rm -f "$prompt_file"
-
-  # Merge back if there are changes
-  if (cd "$worktree_dir" && git diff --quiet HEAD 2>/dev/null); then
-    echo "  No changes — cleaning up worktree"
-    git worktree remove "$worktree_dir" 2>/dev/null || rm -rf "$worktree_dir"
-    git branch -D "$branch_name" 2>/dev/null || true
-  else
-    echo "  Changes detected on branch: $branch_name"
-    echo "  Worktree: $worktree_dir"
-    echo "  Merge with: git merge $branch_name"
-  fi
-else
-  if [[ "$use_worktree" == "true" ]]; then
-    echo "  Warning: worktree requested but no commits exist — running directly"
-  fi
-  # Write prompt to temp file to avoid pipe/ARG_MAX issues
-  prompt_file=$(mktemp)
-  echo "$prompt" > "$prompt_file"
-  # Run directly (no worktree isolation)
-  claude "${claude_args[@]}" --print < "$prompt_file"
-  rm -f "$prompt_file"
+if [[ $exit_code -ne 0 ]]; then
+  echo "Error: Claude exited with code $exit_code" >&2
+  exit $exit_code
 fi
 
 echo ""
