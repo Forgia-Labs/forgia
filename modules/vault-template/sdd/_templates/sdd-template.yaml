@@ -1,0 +1,85 @@
+# Forgia SDD — YAML format (machine-parseable, auto-validatable)
+# Equivalent to sdd-template.md but structured for programmatic use.
+
+meta:
+  id: "{{SDD_ID}}"
+  fd: "{{FD_ID}}"
+  title: "{{TITLE}}"
+  status: planned          # planned | in-progress | done | blocked
+  agent: ""                # claude-code | openhands | manual
+  assigned_to: ""
+  created: "{{DATE}}"
+  started: ""
+  completed: ""
+  tags: []
+  bd_task_id: ""           # Beads task ID for cross-reference
+
+scope: |
+  What to build. Derived from the FD. Precise, unambiguous.
+  Cosa costruire. Derivato dal FD. Preciso, non ambiguo.
+
+interfaces:
+  - name: ""
+    type: ""               # trait | api | ipc | event | schema
+    description: ""
+    contract: ""           # type signature, endpoint path, schema ref
+
+constraints:
+  language: ""
+  framework: ""
+  dependencies: []
+  patterns: []             # builder, repository, event-driven, etc.
+  version_requirements: {} # e.g. { rust: "1.80+", node: "22+" }
+
+best_practices:
+  error_handling: ""
+  naming: ""
+  style: ""
+  # Loaded from .forgia/dev-guide/principles/ and lang/
+  principles_loaded: []    # auto-filled: [clean-code, solid, design-patterns]
+  lang_loaded: []          # auto-filled: [rust, python, etc.]
+
+test_requirements:
+  - type: unit
+    what: ""
+    coverage: ""
+  - type: integration
+    what: ""
+    coverage: ""
+  - type: e2e
+    what: ""
+    coverage: ""
+
+acceptance_criteria:
+  - criterion: ""
+    met: false
+  - criterion: ""
+    met: false
+
+context:
+  files_to_read: []
+  docs_to_consult: []
+  existing_code: []
+
+constitution_check:
+  code_standards: false
+  commit_conventions: false
+  no_hardcoded_secrets: false
+  tests_sufficient: false
+
+work_log:
+  executor: ""             # openhands | claude-code | manual | name
+  started: ""
+  completed: ""
+  duration: ""
+  decisions:
+    - what: ""
+      why: ""
+  output:
+    commits: []
+    pr: ""
+    files_changed: []
+  retrospective:
+    worked: ""
+    didnt_work: ""
+    suggestions: ""

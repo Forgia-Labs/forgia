@@ -97,15 +97,44 @@ if [[ "$max_turns" != "0" ]]; then
   claude_args+=(--max-turns "$max_turns")
 fi
 
-echo "→ Launching Claude Code agent..."
+echo "→ Launching Claude Code agent (session-isolated)..."
 echo ""
 
-# Execute via claude CLI
-if command -v claude >/dev/null 2>&1; then
-  echo "$prompt" | claude "${claude_args[@]}" --print
-else
+# Execute via claude CLI — each SDD gets its own isolated session
+# This prevents context pollution between SDDs and saves tokens
+if ! command -v claude >/dev/null 2>&1; then
   echo "Error: 'claude' CLI not found. Install Claude Code first." >&2
   exit 1
+fi
+
+# Session isolation: --no-conversation-history ensures a fresh context
+# Each SDD runs in its own session with only its spec + conventions loaded
+if [[ "$use_worktree" == "true" ]]; then
+  # Create temporary worktree for full git isolation
+  worktree_dir=$(mktemp -d)
+  branch_name="forgia/${sdd_id:-sdd}-$(date +%s)"
+
+  echo "  Worktree: $worktree_dir"
+  echo "  Branch:   $branch_name"
+
+  git worktree add -b "$branch_name" "$worktree_dir" HEAD 2>/dev/null
+
+  # Run in worktree
+  (cd "$worktree_dir" && echo "$prompt" | claude "${claude_args[@]}" --print)
+
+  # Merge back if there are changes
+  if (cd "$worktree_dir" && git diff --quiet HEAD 2>/dev/null); then
+    echo "  No changes — cleaning up worktree"
+    git worktree remove "$worktree_dir" 2>/dev/null || rm -rf "$worktree_dir"
+    git branch -D "$branch_name" 2>/dev/null || true
+  else
+    echo "  Changes detected on branch: $branch_name"
+    echo "  Worktree: $worktree_dir"
+    echo "  Merge with: git merge $branch_name"
+  fi
+else
+  # Run directly (no worktree isolation)
+  echo "$prompt" | claude "${claude_args[@]}" --print
 fi
 
 echo ""

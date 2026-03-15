@@ -12,6 +12,13 @@ run = "{{source_dir}}/bin/forgia status"
 description = "Verifica salute: docker, openhands, vault, mise"
 run = "{{source_dir}}/bin/forgia doctor"
 
+# --- SDD validation ---
+
+[tasks."sdd:validate"]
+description = "Valida un SDD o tutti gli SDD di un FD"
+usage = "mise run sdd:validate <sdd-file|FD-NNN>"
+run = "{{source_dir}}/bin/forgia validate $@"
+
 # --- SDD execution (runner-agnostic) ---
 
 [tasks."sdd:exec"]

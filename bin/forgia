@@ -12,6 +12,7 @@ Incantesimi (comandi):
   init                          Forgia il vault .forgia/ nel progetto
   status                        Mostra la dashboard FD + SDD
   doctor                        Verifica salute (docker, openhands, vault)
+  validate <sdd-file|FD-NNN>    Valida un SDD o tutti gli SDD di un FD
   exec <sdd-file> [--runner=X]  Esegui un SDD (runner: claude|openhands)
   batch <FD-NNN> [--runner=X]   Esegui tutti gli SDD di un FD
   watch <FD-NNN> [--runner=X]   Osserva e esegui nuovi SDD automaticamente
@@ -384,6 +385,44 @@ cmd_doctor() {
   echo "Summary: $ok OK, $warn warnings, $fail failures"
 }
 
+# --- validate ---
+
+cmd_validate() {
+  local target="${1:?Usage: forgia validate <sdd-file|FD-NNN>}"
+  local validate_script="$ROOT_DIR/modules/runners/validate-sdd.sh"
+
+  if [[ -f "$target" ]]; then
+    # Single file
+    "$validate_script" "$target"
+  elif [[ -d "$VAULT_DIR/sdd/$target" ]]; then
+    # FD directory — validate all SDDs
+    local total=0 valid=0 invalid=0
+    for sdd in "$VAULT_DIR/sdd/$target"/SDD-*.{md,yaml,yml}; do
+      [[ -f "$sdd" ]] || continue
+      total=$((total + 1))
+      echo ""
+      if "$validate_script" "$sdd"; then
+        valid=$((valid + 1))
+      else
+        invalid=$((invalid + 1))
+      fi
+    done
+
+    if (( total == 0 )); then
+      echo "No SDDs found for $target"
+      exit 1
+    fi
+
+    echo ""
+    echo "=== Validation Summary: $target ==="
+    echo "  Total: $total | Valid: $valid | Invalid: $invalid"
+    (( invalid == 0 )) || exit 1
+  else
+    echo "Error: '$target' is not a file or FD identifier" >&2
+    exit 1
+  fi
+}
+
 # --- exec ---
 
 cmd_exec() {
@@ -394,6 +433,15 @@ cmd_exec() {
   script=$(get_runner_script "$runner")
 
   echo "→ Executing $sdd_file with runner: $runner"
+  echo ""
+
+  # Pre-exec validation
+  local validate_script="$ROOT_DIR/modules/runners/validate-sdd.sh"
+  if ! "$validate_script" "$sdd_file"; then
+    echo ""
+    echo "Error: SDD validation failed — fix errors before execution" >&2
+    exit 1
+  fi
   echo ""
 
   # Update SDD status to in-progress
@@ -546,12 +594,13 @@ main() {
   shift || true
 
   case "$cmd" in
-    init)    cmd_init ;;
-    status)  cmd_status ;;
-    doctor)  cmd_doctor ;;
-    exec)    cmd_exec "$@" ;;
-    batch)   cmd_batch "$@" ;;
-    watch)   cmd_watch "$@" ;;
+    init)     cmd_init ;;
+    status)   cmd_status ;;
+    doctor)   cmd_doctor ;;
+    validate) cmd_validate "$@" ;;
+    exec)     cmd_exec "$@" ;;
+    batch)    cmd_batch "$@" ;;
+    watch)    cmd_watch "$@" ;;
     *)       usage; exit 1 ;;
   esac
 }
