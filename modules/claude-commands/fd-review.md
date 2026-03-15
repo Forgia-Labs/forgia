@@ -17,10 +17,13 @@ Given FD identifier: $ARGUMENTS
 - [ ] At least 2 solutions were considered with pros/cons
 - [ ] The chosen solution is justified
 
-### Architecture
-- [ ] Mermaid diagram is present and accurate
-- [ ] Components and dependencies are identified
-- [ ] Interfaces between components are defined
+### Architecture & Mermaid Diagrams (MANDATORY)
+- [ ] **Integration Context diagram** is present — shows where the feature sits in the existing system (existing components in grey, new in green)
+- [ ] **Data Flow diagram** is present — sequence diagram showing the interaction between components
+- [ ] Diagrams are NOT the default template placeholders — they must reflect the actual feature
+- [ ] Diagrams use correct Mermaid syntax (flowchart/sequenceDiagram)
+- [ ] Components and dependencies are identified in the diagrams
+- [ ] Interfaces between components are defined and match the diagrams
 - [ ] No significant technical debt introduced
 
 ### SDD Planning

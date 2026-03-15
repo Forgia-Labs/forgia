@@ -12,6 +12,7 @@ Incantesimi (comandi):
   init                          Forgia il vault .forgia/ nel progetto
   status                        Mostra la dashboard FD + SDD
   doctor                        Verifica salute (docker, openhands, vault)
+  validate <sdd-file|FD-NNN>    Valida un SDD o tutti gli SDD di un FD
   exec <sdd-file> [--runner=X]  Esegui un SDD (runner: claude|openhands)
   batch <FD-NNN> [--runner=X]   Esegui tutti gli SDD di un FD
   watch <FD-NNN> [--runner=X]   Osserva e esegui nuovi SDD automaticamente
@@ -183,6 +184,20 @@ cmd_init() {
     echo "  Loaded conventions: dev-guide/lang/{${detected[*]}}.md"
   fi
 
+  # Beads (bd) initialization
+  if command -v bd >/dev/null 2>&1; then
+    if [[ ! -d ".beads" ]]; then
+      echo ""
+      echo "→ Initializing Beads task tracker..."
+      bd init 2>/dev/null || true
+      echo "  Created: .beads/"
+    else
+      echo "  Beads: already initialized"
+    fi
+  else
+    echo "  Beads: not installed (optional — run: mise run bd:install)"
+  fi
+
   echo ""
   echo "✓ Vault scaffolded at $VAULT_DIR/"
   echo ""
@@ -261,6 +276,14 @@ cmd_status() {
   fi
   echo ""
 
+  # Beads ready tasks
+  if command -v bd >/dev/null 2>&1 && [[ -d ".beads" ]]; then
+    echo ""
+    echo "--- Beads (ready tasks) ---"
+    bd ready 2>/dev/null || echo "  (no ready tasks)"
+  fi
+
+  echo ""
   echo "Summary: $fd_count FDs, $sdd_count SDDs, $ops_count active tasks"
 }
 
@@ -363,6 +386,40 @@ cmd_doctor() {
     warn=$((warn + 1))
   fi
 
+  # Check Beads (bd)
+  if command -v bd >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "beads (bd)"
+    ok=$((ok + 1))
+    if [[ -d ".beads" ]]; then
+      printf "  %-25s OK\n" "beads repo (.beads/)"
+      ok=$((ok + 1))
+    else
+      printf "  %-25s NOT INITIALIZED (run: bd init)\n" "beads repo (.beads/)"
+      warn=$((warn + 1))
+    fi
+  else
+    printf "  %-25s NOT INSTALLED (optional — run: mise run bd:install)\n" "beads (bd)"
+    warn=$((warn + 1))
+  fi
+
+  # Check fswatch (for forgia watch)
+  if command -v fswatch >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "fswatch"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT INSTALLED (optional — brew install fswatch)\n" "fswatch"
+    warn=$((warn + 1))
+  fi
+
+  # Check yq (for YAML SDD validation)
+  if command -v yq >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "yq"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT INSTALLED (optional — brew install yq)\n" "yq"
+    warn=$((warn + 1))
+  fi
+
   # Check LLM key
   if [[ -n "${ANTHROPIC_API_KEY:-}" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
     printf "  %-25s OK\n" "llm api key"
@@ -374,6 +431,44 @@ cmd_doctor() {
 
   echo ""
   echo "Summary: $ok OK, $warn warnings, $fail failures"
+}
+
+# --- validate ---
+
+cmd_validate() {
+  local target="${1:?Usage: forgia validate <sdd-file|FD-NNN>}"
+  local validate_script="$ROOT_DIR/modules/runners/validate-sdd.sh"
+
+  if [[ -f "$target" ]]; then
+    # Single file
+    "$validate_script" "$target"
+  elif [[ -d "$VAULT_DIR/sdd/$target" ]]; then
+    # FD directory — validate all SDDs
+    local total=0 valid=0 invalid=0
+    for sdd in "$VAULT_DIR/sdd/$target"/SDD-*.{md,yaml,yml}; do
+      [[ -f "$sdd" ]] || continue
+      total=$((total + 1))
+      echo ""
+      if "$validate_script" "$sdd"; then
+        valid=$((valid + 1))
+      else
+        invalid=$((invalid + 1))
+      fi
+    done
+
+    if (( total == 0 )); then
+      echo "No SDDs found for $target"
+      exit 1
+    fi
+
+    echo ""
+    echo "=== Validation Summary: $target ==="
+    echo "  Total: $total | Valid: $valid | Invalid: $invalid"
+    (( invalid == 0 )) || exit 1
+  else
+    echo "Error: '$target' is not a file or FD identifier" >&2
+    exit 1
+  fi
 }
 
 # --- exec ---
@@ -388,6 +483,15 @@ cmd_exec() {
   echo "→ Executing $sdd_file with runner: $runner"
   echo ""
 
+  # Pre-exec validation
+  local validate_script="$ROOT_DIR/modules/runners/validate-sdd.sh"
+  if ! "$validate_script" "$sdd_file"; then
+    echo ""
+    echo "Error: SDD validation failed — fix errors before execution" >&2
+    exit 1
+  fi
+  echo ""
+
   # Update SDD status to in-progress
   if [[ -f "$sdd_file" ]] && grep -q '^status:' "$sdd_file"; then
     sed -i.bak 's/^status: .*/status: in-progress/' "$sdd_file"
@@ -400,6 +504,21 @@ cmd_exec() {
   if [[ -f "$sdd_file" ]]; then
     sed -i.bak 's/^status: .*/status: done/' "$sdd_file"
     rm -f "${sdd_file}.bak"
+  fi
+
+  # Close corresponding bd task if it exists
+  if command -v bd >/dev/null 2>&1 && [[ -d ".beads" ]]; then
+    local sdd_id
+    sdd_id=$(grep '^id:' "$sdd_file" 2>/dev/null | head -1 | sed 's/id: *//')
+    if [[ -n "$sdd_id" ]]; then
+      # Find bd task tagged with this SDD id and close it
+      local bd_task_id
+      bd_task_id=$(bd search "$sdd_id" --format=json 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//') || true
+      if [[ -n "$bd_task_id" ]]; then
+        bd update "$bd_task_id" --status=done 2>/dev/null || true
+        echo "  → Beads task $bd_task_id closed"
+      fi
+    fi
   fi
 }
 
@@ -523,12 +642,13 @@ main() {
   shift || true
 
   case "$cmd" in
-    init)    cmd_init ;;
-    status)  cmd_status ;;
-    doctor)  cmd_doctor ;;
-    exec)    cmd_exec "$@" ;;
-    batch)   cmd_batch "$@" ;;
-    watch)   cmd_watch "$@" ;;
+    init)     cmd_init ;;
+    status)   cmd_status ;;
+    doctor)   cmd_doctor ;;
+    validate) cmd_validate "$@" ;;
+    exec)     cmd_exec "$@" ;;
+    batch)    cmd_batch "$@" ;;
+    watch)    cmd_watch "$@" ;;
     *)       usage; exit 1 ;;
   esac
 }

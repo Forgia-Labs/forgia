@@ -5,19 +5,20 @@
   ██╔══╝  ██║   ██║██╔══██╗██║   ██║██║██╔══██║
   ██║     ╚██████╔╝██║  ██║╚██████╔╝██║██║  ██║
   ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═╝  ╚═╝
+
+  Forge specs into code. FD → SDD → Agent execution framework.
 ```
 
-> Forge specs into code. Spec-driven development framework for AI agents.
-
-Forgia is an opinionated SDD (Spec-Driven Development) framework that turns human design decisions into execution contracts for autonomous agents.
+> Spec-driven development framework for AI agents.
+> Forgia turns human design decisions into execution contracts for autonomous agents.
 
 ## The Model
 
 ```
 You ──→ FD (what & why) ──→ SDD (how, for agents) ──→ Agent ──→ Code
-         functional            execution contract        OpenHands
-         design                agent-ready prompt        Claude Code
-         1 per feature         N per FD                  parallel
+         functional           execution contract        OpenHands
+         design               agent-ready prompt        Claude Code
+         1 per feature        N per FD                  parallel
 ```
 
 | Layer | Who | What |
@@ -30,15 +31,18 @@ You ──→ FD (what & why) ──→ SDD (how, for agents) ──→ Agent �
 ## Quick Start
 
 ```bash
-# Prerequisites: mise, docker
+# Prerequisites: mise, docker (optional for OpenHands)
 git clone git@github.com:Deepzima/forgia.git
 cd forgia
 
-# Install Claude Code commands
+# Install Claude Code slash commands
 mise run claude:install
 
-# Install OpenHands runtime
-mise run openhands:install
+# Install optional tools (fswatch, yq)
+mise run tools:install
+
+# Install Beads task tracker (optional)
+mise run bd:install
 
 # Initialize a new project
 cd /path/to/your/project
@@ -52,77 +56,130 @@ After `forgia init`, your project gets:
 ```
 your-project/
   .forgia/
-    constitution.md         # immutable project rules
-    _dashboard.md           # Obsidian dataview overview
-    fd/                     # Feature Designs
-    sdd/                    # Execution Specs (agent-ready)
-    ops/                    # Operational tasks
-    dev-guide/              # Conventions
+    config.toml               # runner and beads configuration
+    constitution.md            # immutable project rules
+    _dashboard.md              # Obsidian dataview overview
+    fd/                        # Feature Designs (what & why)
+    sdd/                       # Execution Specs (how, for agents)
+      _templates/
+        sdd-template.md        # markdown format
+        sdd-template.yaml      # YAML format (machine-parseable)
+    ops/                       # manual operational tasks
+    dev-guide/
+      principles/              # clean-code, SOLID, design-patterns
+      lang/                    # per-language conventions (auto-detected)
+      coding-conventions.md
+      commit-conventions.md
+      review-process.md
 ```
 
-## Incantesimi (Spells)
+## Spells (Commands)
 
-> Forgia's commands — Claude Code slash commands.
+> Claude Code slash commands — the core workflow.
 
-| Incantesimo | What it does |
-|-------------|--------------|
-| `/project-init` | Prepare the forge — scaffold the `.forgia/` vault |
-| `/fd-new` | Forge a new design — create a Feature Design |
-| `/fd-review` | Trial by fire — mandatory review gate |
-| `/fd-sdd` | Temper the specs — generate N SDDs from an approved FD |
-| `/fd-deep` | Deep analysis — 4 agents explore the problem in parallel |
-| `/fd-explore` | Study the piece — load FD context |
-| `/fd-verify` | Quality check — verify implementation vs spec |
-| `/fd-close` | Seal the work — archive completed FD + retrospective |
-| `/fd-status` | Forge status — FD + SDD dashboard |
-| `/sdd-assign` | Assign the work — send an SDD to an agent |
-| `/sdd-status` | Agent status — SDD execution progress |
+| Spell | What it does |
+|-------|--------------|
+| `/fd-new` | **Forge a new design** — create a Feature Design |
+| `/fd-review` | **Trial by fire** — mandatory review gate |
+| `/fd-sdd` | **Temper the specs** — generate N SDDs from an approved FD |
+| `/fd-deep` | **Deep analysis** — 4 agents explore the problem in parallel |
+| `/fd-explore` | **Study the piece** — load FD context |
+| `/fd-verify` | **Quality check** — verify implementation vs spec |
+| `/fd-close` | **Seal the work** — archive completed FD + retrospective |
+| `/fd-status` | **Forge status** — FD + SDD dashboard |
 
-## Attrezzi della Fucina (Forge Tools)
+## CLI Tools
 
-> Mise tasks for infrastructure management.
+> `forgia` commands and `mise` tasks for workflow management.
 
-| Attrezzo | What it does |
-|----------|--------------|
-| `mise run init` | Scaffold vault in current project |
-| `mise run openhands:install` | Pull OpenHands container |
-| `mise run openhands:up` | Light the forge — start OpenHands on :3000 |
-| `mise run openhands:down` | Shut down the forge |
-| `mise run sdd <file>` | Execute an SDD with OpenHands headless |
-| `mise run sdd:batch FD-001` | Execute all SDDs for an FD in parallel |
-| `mise run status` | Dashboard of all FD + SDD |
-| `mise run doctor` | Health check (docker, openhands, vault) |
-| `mise run claude:install` | Install commands in Claude Code |
+| Command | What it does |
+|---------|--------------|
+| `forgia init` | Scaffold the vault in the current project |
+| `forgia status` | Dashboard: FDs + SDDs + Beads ready tasks |
+| `forgia doctor` | Health check (docker, bd, vault, mise, fswatch, yq) |
+| `forgia validate <sdd>` | Validate an SDD before execution |
+| `forgia exec <sdd>` | Execute an SDD (auto-detect runner from config) |
+| `forgia batch <FD-NNN>` | Execute all SDDs for an FD |
+| `forgia watch <FD-NNN>` | Watch and auto-execute new SDDs |
+
+### Runners
+
+```bash
+# Claude Code — uses your Max subscription (free)
+forgia exec .forgia/sdd/FD-001/SDD-001.md --runner=claude
+
+# OpenHands — uses API keys, isolated Docker containers
+forgia exec .forgia/sdd/FD-001/SDD-001.md --runner=openhands
+
+# Default from config.toml
+forgia exec .forgia/sdd/FD-001/SDD-001.md
+```
+
+| Runner | When to use |
+|--------|-------------|
+| **Claude Code** | Interactive, Max subscription, git worktree isolation |
+| **OpenHands** | Autonomous, N parallel containers, API keys |
+| **Manual** | Read the SDD and implement yourself |
+
+## Beads Integration
+
+[Beads (bd)](https://github.com/steveyegge/beads) manages the dependency graph between SDDs:
+
+```bash
+# After /fd-sdd: creates epic + subtasks with dependencies
+bd ready              # show unblocked tasks
+forgia batch FD-001   # execute only ready ones (dependency-aware)
+```
+
+## Knowledge Stack
+
+Every agent automatically loads:
+
+```
+.forgia/dev-guide/
+  principles/          ← ALWAYS loaded (clean-code, SOLID, design-patterns)
+  lang/                ← auto-detected per project (rust, python, ts, go, shell)
+  coding-conventions   ← operational rules
+  commit-conventions   ← commit format
+```
 
 ## Work Log
 
-Every SDD includes a mandatory Work Log section:
+Every SDD includes a mandatory Work Log — filled by the agent or developer:
 
-```markdown
-## Work Log
-### Agent
-- who executed, when, duration
-### Decisions
-- deviations from plan, problems encountered
-### Output
-- commit hash, PR link, files created/modified
-### Retrospective
-- what worked, what didn't, suggestions for future FDs
+```yaml
+work_log:
+  executor: claude-code
+  started: 2026-03-15T10:00:00
+  completed: 2026-03-15T11:30:00
+  decisions:
+    - what: "Used tower middleware instead of manual auth"
+      why: "Composable, testable, idiomatic axum"
+  output:
+    commits: ["abc123"]
+    files_changed: ["src/auth.rs", "tests/auth_test.rs"]
+  retrospective:
+    worked: "Builder pattern for config was clean"
+    suggestions: "Add integration test template to SDD"
 ```
 
-## Agent Backends
+## Prerequisites
 
-| Agent | When |
-|-------|------|
-| **Claude Code** | Interactive, you're at the keyboard |
-| **OpenHands** | Autonomous, N agents in parallel containers |
-| **Manual** | You read the SDD and implement yourself |
+| Tool | Required | Purpose | Install |
+|------|----------|---------|---------|
+| `mise` | Yes | Task runner | [mise.jdx.dev](https://mise.jdx.dev) |
+| `claude` | Yes | Claude Code CLI | [claude.ai/claude-code](https://claude.ai/claude-code) |
+| `docker` | Optional | OpenHands runner | [docker.com](https://docker.com) |
+| `bd` | Optional | Beads task tracker | `mise run bd:install` |
+| `fswatch` | Optional | `forgia watch` | `brew install fswatch` |
+| `yq` | Optional | YAML SDD validation | `brew install yq` |
 
 ## Inspired By
 
+- [AutoSpec](https://github.com/ariel-frischer/autospec) — YAML specs, auto-validation, session isolation
+- [Beads](https://github.com/steveyegge/beads) — distributed graph issue tracker for AI agents
 - [GitHub Spec Kit](https://github.com/github/spec-kit) — spec/plan separation, constitution
-- [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) — multi-agent roles
-- [OpenHands](https://github.com/OpenHands/OpenHands) — sandboxed agent runtime
+- [OpenHands](https://github.com/all-hands-ai/OpenHands) — sandboxed agent runtime
 
 ## License
 
