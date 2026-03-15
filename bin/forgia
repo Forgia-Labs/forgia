@@ -620,21 +620,32 @@ cmd_watch() {
 
   mkdir -p "$sdd_dir"
 
-  echo "=== Forgia Watcher ==="
-  echo "  Watching: $sdd_dir"
-  echo "  Runner:   $runner"
-  echo "  Press Ctrl+C to stop"
-  echo ""
-
   # Read debounce from config
   local debounce=5
   if [[ -f "$VAULT_DIR/config.toml" ]]; then
-    debounce=$(grep -A3 '\[watcher\]' "$VAULT_DIR/config.toml" | grep 'debounce' | sed 's/.*= *//' | tr -d ' ' || echo "5")
+    debounce=$(grep -A3 '\[watcher\]' "$VAULT_DIR/config.toml" | grep -v '^#' | grep 'debounce' | head -1 | sed 's/.*= *//' | tr -d ' ' || echo "5")
   fi
 
-  # Track already-processed files
+  echo "=== Forgia Watcher ==="
+  echo "  Watching:  $sdd_dir"
+  echo "  Runner:    $runner"
+  echo "  Debounce:  ${debounce}s"
+  echo "  Logs:      $VAULT_DIR/logs/"
+  echo ""
+  echo "  Waiting for new SDDs... (Ctrl+C to stop)"
+  echo ""
+
+  # Track already-processed files and existing files
   local processed_file
   processed_file=$(mktemp)
+
+  # Pre-populate with existing SDD files (don't re-execute them)
+  for existing in "$sdd_dir"/SDD-*.md; do
+    [[ -f "$existing" ]] && echo "$existing" >> "$processed_file"
+  done
+
+  local watch_start=$SECONDS
+  local exec_count=0
 
   # Watch for new SDD files
   fswatch -0 --event Created --event Updated "$sdd_dir" | while IFS= read -r -d '' file; do
@@ -646,15 +657,36 @@ cmd_watch() {
       continue
     fi
 
-    # Debounce
+    # Debounce — wait for file to be fully written
     sleep "$debounce"
 
-    echo "→ New SDD detected: $(basename "$file")"
-    echo "$file" >> "$processed_file"
+    local sdd_name
+    sdd_name=$(basename "$file")
+    local elapsed=$(( SECONDS - watch_start ))
+    local mins=$(( elapsed / 60 )) secs=$(( elapsed % 60 ))
 
-    # Execute in background
-    cmd_exec "$file" --runner="$runner" &
+    echo "$file" >> "$processed_file"
+    exec_count=$((exec_count + 1))
+
+    printf "┌── [%02d:%02d] New SDD detected: %s\n" "$mins" "$secs" "$sdd_name"
+    echo "│   Launching exec (runner: $runner)..."
+    echo "│   Log: $VAULT_DIR/logs/exec-*-$(date +%Y-%m-%d)*.log"
+    echo "│"
+
+    # Execute — foreground so we see the live output
+    if cmd_exec "$file" --runner="$runner"; then
+      local end_elapsed=$(( SECONDS - watch_start ))
+      local end_mins=$(( end_elapsed / 60 )) end_secs=$(( end_elapsed % 60 ))
+      printf "└── [%02d:%02d] %s DONE\n" "$end_mins" "$end_secs" "$sdd_name"
+    else
+      printf "└── [%02d:%02d] %s FAILED\n" "$end_mins" "$end_secs" "$sdd_name"
+    fi
+    echo ""
+    echo "  Waiting for more SDDs... ($exec_count executed so far)"
+    echo ""
   done
+
+  rm -f "$processed_file"
 
   rm -f "$processed_file"
 }
