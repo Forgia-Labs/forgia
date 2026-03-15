@@ -8,19 +8,78 @@ usage() {
   cat <<USAGE
 Usage: forgia <command> [arguments]
 
-Commands:
-  init                 Scaffold .forgia/ vault in current project
-  status               Show FD + SDD dashboard
-  doctor               Health check (docker, openhands, vault)
+Incantesimi (comandi):
+  init                          Forgia il vault .forgia/ nel progetto
+  status                        Mostra la dashboard FD + SDD
+  doctor                        Verifica salute (docker, openhands, vault)
+  exec <sdd-file> [--runner=X]  Esegui un SDD (runner: claude|openhands)
+  batch <FD-NNN> [--runner=X]   Esegui tutti gli SDD di un FD
+  watch <FD-NNN> [--runner=X]   Osserva e esegui nuovi SDD automaticamente
 
-Mise tasks (run via mise):
-  mise run openhands:install    Pull OpenHands container
-  mise run openhands:up         Start OpenHands UI
-  mise run sdd <file>           Execute SDD with OpenHands
-  mise run sdd:batch FD-001     Execute all SDDs for an FD
-  mise run claude:install       Symlink Claude Code commands
+Runner:
+  --runner=claude               Claude Code sub-agent (usa Max subscription)
+  --runner=openhands            OpenHands container (usa API key)
+  (default: da .forgia/config.toml)
 
 USAGE
+}
+
+# --- runner resolution ---
+
+resolve_runner() {
+  local runner="${1:-}"
+
+  # If explicitly passed, use it
+  if [[ -n "$runner" ]]; then
+    echo "$runner"
+    return
+  fi
+
+  # Read from config
+  local config_file="$VAULT_DIR/config.toml"
+  if [[ -f "$config_file" ]]; then
+    local default_runner
+    default_runner=$(grep -A2 '\[runner\]' "$config_file" | grep 'default' | sed 's/.*= *"*//;s/"*$//' || echo "")
+    if [[ -n "$default_runner" ]]; then
+      echo "$default_runner"
+      return
+    fi
+  fi
+
+  # Fallback
+  echo "claude"
+}
+
+get_runner_script() {
+  local runner="$1"
+  local script="$ROOT_DIR/modules/runners/${runner}.sh"
+
+  if [[ ! -f "$script" ]]; then
+    echo "Error: Unknown runner '$runner'. Available: claude, openhands" >&2
+    exit 1
+  fi
+
+  echo "$script"
+}
+
+# Parse --runner=X from arguments
+parse_runner_arg() {
+  for arg in "$@"; do
+    if [[ "$arg" =~ ^--runner=(.+)$ ]]; then
+      echo "${BASH_REMATCH[1]}"
+      return
+    fi
+  done
+  echo ""
+}
+
+# Remove --runner=X from arguments
+strip_runner_arg() {
+  local args=()
+  for arg in "$@"; do
+    [[ "$arg" =~ ^--runner= ]] || args+=("$arg")
+  done
+  echo "${args[@]}"
 }
 
 # --- init ---
@@ -39,6 +98,12 @@ cmd_init() {
 
   # Copy templates
   local tmpl_dir="$ROOT_DIR/modules/vault-template"
+
+  # Config
+  if [[ ! -f "$VAULT_DIR/config.toml" ]]; then
+    cp "$tmpl_dir/config.toml" "$VAULT_DIR/"
+    echo "  Created: config.toml"
+  fi
 
   # Constitution
   if [[ ! -f "$VAULT_DIR/constitution.md" ]]; then
@@ -281,6 +346,141 @@ cmd_doctor() {
   echo "Summary: $ok OK, $warn warnings, $fail failures"
 }
 
+# --- exec ---
+
+cmd_exec() {
+  local sdd_file="${1:?Usage: forgia exec <sdd-file> [--runner=claude|openhands]}"
+  local runner
+  runner=$(resolve_runner "$(parse_runner_arg "$@")")
+  local script
+  script=$(get_runner_script "$runner")
+
+  echo "→ Executing $sdd_file with runner: $runner"
+  echo ""
+
+  # Update SDD status to in-progress
+  if [[ -f "$sdd_file" ]] && grep -q '^status:' "$sdd_file"; then
+    sed -i.bak 's/^status: .*/status: in-progress/' "$sdd_file"
+    rm -f "${sdd_file}.bak"
+  fi
+
+  "$script" "$sdd_file"
+
+  # Update SDD status to done
+  if [[ -f "$sdd_file" ]]; then
+    sed -i.bak 's/^status: .*/status: done/' "$sdd_file"
+    rm -f "${sdd_file}.bak"
+  fi
+}
+
+# --- batch ---
+
+cmd_batch() {
+  local fd_id="${1:?Usage: forgia batch <FD-NNN> [--runner=claude|openhands]}"
+  local runner
+  runner=$(resolve_runner "$(parse_runner_arg "$@")")
+  local sdd_dir="$VAULT_DIR/sdd/$fd_id"
+
+  if [[ ! -d "$sdd_dir" ]]; then
+    echo "Error: No SDDs found for $fd_id at $sdd_dir" >&2
+    exit 1
+  fi
+
+  local sdd_files=()
+  for sdd in "$sdd_dir"/SDD-*.md; do
+    [[ -f "$sdd" ]] || continue
+    local sstatus
+    sstatus=$(grep '^status:' "$sdd" | head -1 | sed 's/status: *//')
+    if [[ "$sstatus" != "done" ]]; then
+      sdd_files+=("$sdd")
+    fi
+  done
+
+  if (( ${#sdd_files[@]} == 0 )); then
+    echo "No pending SDDs for $fd_id"
+    exit 0
+  fi
+
+  echo "=== Forgia Batch Execution ==="
+  echo "  FD:     $fd_id"
+  echo "  Runner: $runner"
+  echo "  SDDs:   ${#sdd_files[@]} pending"
+  echo ""
+
+  local completed=0 failed=0
+  for sdd_file in "${sdd_files[@]}"; do
+    local sid
+    sid=$(grep '^id:' "$sdd_file" | head -1 | sed 's/id: *//')
+    echo "--- Executing $sid ---"
+
+    if cmd_exec "$sdd_file" --runner="$runner"; then
+      completed=$((completed + 1))
+    else
+      failed=$((failed + 1))
+      echo "  Warning: $sid failed" >&2
+    fi
+    echo ""
+  done
+
+  echo "=== Batch Complete ==="
+  echo "  Completed: $completed"
+  echo "  Failed:    $failed"
+}
+
+# --- watch ---
+
+cmd_watch() {
+  local fd_id="${1:?Usage: forgia watch <FD-NNN> [--runner=claude|openhands]}"
+  local runner
+  runner=$(resolve_runner "$(parse_runner_arg "$@")")
+  local sdd_dir="$VAULT_DIR/sdd/$fd_id"
+
+  if ! command -v fswatch >/dev/null 2>&1; then
+    echo "Error: fswatch not found. Install with: brew install fswatch" >&2
+    exit 1
+  fi
+
+  mkdir -p "$sdd_dir"
+
+  echo "=== Forgia Watcher ==="
+  echo "  Watching: $sdd_dir"
+  echo "  Runner:   $runner"
+  echo "  Press Ctrl+C to stop"
+  echo ""
+
+  # Read debounce from config
+  local debounce=5
+  if [[ -f "$VAULT_DIR/config.toml" ]]; then
+    debounce=$(grep -A3 '\[watcher\]' "$VAULT_DIR/config.toml" | grep 'debounce' | sed 's/.*= *//' | tr -d ' ' || echo "5")
+  fi
+
+  # Track already-processed files
+  local processed_file
+  processed_file=$(mktemp)
+
+  # Watch for new SDD files
+  fswatch -0 --event Created --event Updated "$sdd_dir" | while IFS= read -r -d '' file; do
+    # Only process SDD markdown files
+    [[ "$file" =~ SDD-.*\.md$ ]] || continue
+
+    # Skip if already processed
+    if grep -qF "$file" "$processed_file" 2>/dev/null; then
+      continue
+    fi
+
+    # Debounce
+    sleep "$debounce"
+
+    echo "→ New SDD detected: $(basename "$file")"
+    echo "$file" >> "$processed_file"
+
+    # Execute in background
+    cmd_exec "$file" --runner="$runner" &
+  done
+
+  rm -f "$processed_file"
+}
+
 # --- main ---
 
 main() {
@@ -296,6 +496,9 @@ main() {
     init)    cmd_init ;;
     status)  cmd_status ;;
     doctor)  cmd_doctor ;;
+    exec)    cmd_exec "$@" ;;
+    batch)   cmd_batch "$@" ;;
+    watch)   cmd_watch "$@" ;;
     *)       usage; exit 1 ;;
   esac
 }

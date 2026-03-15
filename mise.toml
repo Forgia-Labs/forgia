@@ -1,110 +1,60 @@
-[project]
-name = "forgia"
-description = "Spec-driven development framework"
-
 # --- Core tasks ---
 
 [tasks.init]
-description = "Scaffold .forgia/ vault in the current project"
+description = "Forgia il vault .forgia/ nel progetto"
 run = "{{source_dir}}/bin/forgia init"
 
 [tasks.status]
-description = "Show FD + SDD dashboard"
+description = "Mostra la dashboard FD + SDD"
 run = "{{source_dir}}/bin/forgia status"
 
 [tasks.doctor]
-description = "Health check: docker, openhands, vault, mise"
+description = "Verifica salute: docker, openhands, vault, mise"
 run = "{{source_dir}}/bin/forgia doctor"
+
+# --- SDD execution (runner-agnostic) ---
+
+[tasks."sdd:exec"]
+description = "Esegui un SDD (auto-detect runner da config.toml)"
+usage = "mise run sdd:exec <sdd-file> [--runner=claude|openhands]"
+run = "{{source_dir}}/bin/forgia exec $@"
+
+[tasks."sdd:batch"]
+description = "Esegui tutti gli SDD di un FD"
+usage = "mise run sdd:batch <FD-NNN> [--runner=claude|openhands]"
+run = "{{source_dir}}/bin/forgia batch $@"
+
+[tasks."sdd:watch"]
+description = "Osserva e esegui nuovi SDD automaticamente"
+usage = "mise run sdd:watch <FD-NNN> [--runner=claude|openhands]"
+run = "{{source_dir}}/bin/forgia watch $@"
 
 # --- OpenHands tasks ---
 
 [tasks."openhands:install"]
-description = "Pull OpenHands container image"
+description = "Scarica immagine OpenHands"
 run = [
-  "docker pull ghcr.io/openhands/openhands:latest",
-  "echo '✓ OpenHands installed. Run: mise run openhands:up'"
+  "docker pull ghcr.io/all-hands-ai/openhands:latest",
+  "echo '✓ OpenHands installato. Usa: mise run sdd:exec <file> --runner=openhands'"
 ]
 
 [tasks."openhands:up"]
-description = "Start OpenHands UI on :3000"
+description = "Avvia OpenHands UI su :3000"
 run = "docker compose -f {{source_dir}}/modules/openhands/docker-compose.yml up -d"
 depends = ["openhands:install"]
 
 [tasks."openhands:down"]
-description = "Stop OpenHands"
+description = "Ferma OpenHands"
 run = "docker compose -f {{source_dir}}/modules/openhands/docker-compose.yml down"
 
 [tasks."openhands:logs"]
-description = "Tail OpenHands logs"
+description = "Segui i log di OpenHands"
 run = "docker compose -f {{source_dir}}/modules/openhands/docker-compose.yml logs -f"
-
-# --- SDD execution ---
-
-[tasks.sdd]
-description = "Execute an SDD with OpenHands headless"
-usage = "mise run sdd <sdd-file>"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-
-SDD_FILE="${1:?Usage: mise run sdd <path-to-sdd.md>}"
-
-if [[ ! -f "$SDD_FILE" ]]; then
-  echo "Error: SDD file not found: $SDD_FILE" >&2
-  exit 1
-fi
-
-echo "→ Executing SDD: $SDD_FILE"
-echo "  Agent: OpenHands (headless)"
-echo "  Workspace: $(pwd)"
-
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$(pwd):/workspace" \
-  -e LLM_API_KEY="${ANTHROPIC_API_KEY:-${OPENAI_API_KEY:-}}" \
-  -e LLM_MODEL="${FORGIA_LLM_MODEL:-anthropic/claude-sonnet-4-20250514}" \
-  ghcr.io/openhands/openhands:latest \
-  --headless -f "/workspace/$SDD_FILE"
-"""
-
-[tasks."sdd:batch"]
-description = "Execute all SDDs for a given FD in parallel"
-usage = "mise run sdd:batch <fd-id>"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-
-FD_ID="${1:?Usage: mise run sdd:batch FD-001}"
-SDD_DIR=".forgia/sdd/$FD_ID"
-
-if [[ ! -d "$SDD_DIR" ]]; then
-  echo "Error: No SDD directory found: $SDD_DIR" >&2
-  exit 1
-fi
-
-echo "→ Batch executing SDDs for $FD_ID"
-count=0
-for sdd_file in "$SDD_DIR"/SDD-*.md; do
-  [[ -f "$sdd_file" ]] || continue
-  count=$((count + 1))
-  echo "  Launching: $(basename "$sdd_file")"
-  mise run sdd "$sdd_file" &
-done
-
-if (( count == 0 )); then
-  echo "No SDD files found in $SDD_DIR" >&2
-  exit 1
-fi
-
-echo "→ Waiting for $count agents..."
-wait
-echo "✓ All SDDs for $FD_ID completed"
-"""
 
 # --- Claude Code integration ---
 
 [tasks."claude:install"]
-description = "Symlink Claude Code slash commands to ~/.claude/commands/"
+description = "Collega i comandi Claude Code in ~/.claude/commands/"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
@@ -119,5 +69,5 @@ for cmd_file in {{source_dir}}/modules/claude-commands/*.md; do
   echo "  Linked: /$(basename "$cmd_file" .md)"
 done
 
-echo "✓ Claude Code commands installed"
+echo "✓ Comandi Claude Code installati"
 """
