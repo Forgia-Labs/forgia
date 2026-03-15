@@ -2,45 +2,45 @@
 
 [tasks.test]
 description = "Run E2E tests"
-run = "{{source_dir}}/tests/e2e.sh"
+run = "{{config_root}}/tests/e2e.sh"
 
 # --- Core tasks ---
 
 [tasks.init]
 description = "Forgia il vault .forgia/ nel progetto"
-run = "{{source_dir}}/bin/forgia init"
+run = "{{config_root}}/bin/forgia init"
 
 [tasks.status]
 description = "Mostra la dashboard FD + SDD"
-run = "{{source_dir}}/bin/forgia status"
+run = "{{config_root}}/bin/forgia status"
 
 [tasks.doctor]
 description = "Verifica salute: docker, openhands, vault, mise"
-run = "{{source_dir}}/bin/forgia doctor"
+run = "{{config_root}}/bin/forgia doctor"
 
 # --- SDD validation ---
 
 [tasks."sdd:validate"]
 description = "Valida un SDD o tutti gli SDD di un FD"
 usage = "mise run sdd:validate <sdd-file|FD-NNN>"
-run = "{{source_dir}}/bin/forgia validate $@"
+run = "{{config_root}}/bin/forgia validate $@"
 
 # --- SDD execution (runner-agnostic) ---
 
 [tasks."sdd:exec"]
 description = "Esegui un SDD (auto-detect runner da config.toml)"
 usage = "mise run sdd:exec <sdd-file> [--runner=claude|openhands]"
-run = "{{source_dir}}/bin/forgia exec $@"
+run = "{{config_root}}/bin/forgia exec $@"
 
 [tasks."sdd:batch"]
 description = "Esegui tutti gli SDD di un FD"
 usage = "mise run sdd:batch <FD-NNN> [--runner=claude|openhands]"
-run = "{{source_dir}}/bin/forgia batch $@"
+run = "{{config_root}}/bin/forgia batch $@"
 
 [tasks."sdd:watch"]
 description = "Osserva e esegui nuovi SDD automaticamente"
 usage = "mise run sdd:watch <FD-NNN> [--runner=claude|openhands]"
-run = "{{source_dir}}/bin/forgia watch $@"
+run = "{{config_root}}/bin/forgia watch $@"
 
 # --- Optional tools ---
 
@@ -134,16 +134,16 @@ run = [
 
 [tasks."openhands:up"]
 description = "Avvia OpenHands UI su :3000"
-run = "docker compose -f {{source_dir}}/modules/openhands/docker-compose.yml up -d"
+run = "docker compose -f {{config_root}}/modules/openhands/docker-compose.yml up -d"
 depends = ["openhands:install"]
 
 [tasks."openhands:down"]
 description = "Ferma OpenHands"
-run = "docker compose -f {{source_dir}}/modules/openhands/docker-compose.yml down"
+run = "docker compose -f {{config_root}}/modules/openhands/docker-compose.yml down"
 
 [tasks."openhands:logs"]
 description = "Segui i log di OpenHands"
-run = "docker compose -f {{source_dir}}/modules/openhands/docker-compose.yml logs -f"
+run = "docker compose -f {{config_root}}/modules/openhands/docker-compose.yml logs -f"
 
 # --- Claude Code integration ---
 
@@ -156,7 +156,7 @@ set -euo pipefail
 COMMANDS_DIR="$HOME/.claude/commands"
 mkdir -p "$COMMANDS_DIR"
 
-for cmd_file in {{source_dir}}/modules/claude-commands/*.md; do
+for cmd_file in {{config_root}}/modules/claude-commands/*.md; do
   [[ -f "$cmd_file" ]] || continue
   target="$COMMANDS_DIR/$(basename "$cmd_file")"
   ln -sf "$cmd_file" "$target"
