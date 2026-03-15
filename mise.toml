@@ -1,3 +1,9 @@
+# --- Test ---
+
+[tasks.test]
+description = "Run E2E tests"
+run = "{{source_dir}}/tests/e2e.sh"
+
 # --- Core tasks ---
 
 [tasks.init]
