@@ -386,6 +386,15 @@ cmd_doctor() {
     warn=$((warn + 1))
   fi
 
+  # Check Dolt (required by Beads)
+  if command -v dolt >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "dolt"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s NOT INSTALLED (required by beads — run: mise run bd:install)\n" "dolt"
+    warn=$((warn + 1))
+  fi
+
   # Check Beads (bd)
   if command -v bd >/dev/null 2>&1; then
     printf "  %-25s OK\n" "beads (bd)"

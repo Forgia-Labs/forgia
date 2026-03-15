@@ -76,11 +76,26 @@ echo "  Run 'mise run bd:install' separately for Beads"
 # --- Beads (bd) task tracker ---
 
 [tasks."bd:install"]
-description = "Installa Beads (bd) task tracker"
+description = "Installa Beads (bd) task tracker + Dolt dependency"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Dolt is a required dependency for Beads
+if ! command -v dolt >/dev/null 2>&1; then
+  echo "→ Installing dolt (required by beads)..."
+  if command -v brew >/dev/null 2>&1; then
+    brew install dolt
+  else
+    echo "Error: brew required to install dolt. See: https://docs.dolthub.com/introduction/installation" >&2
+    exit 1
+  fi
+  echo "✓ dolt installed"
+else
+  echo "✓ dolt already installed"
+fi
+
+# Install beads (bd)
 if command -v bd >/dev/null 2>&1; then
   echo "✓ bd already installed: $(bd --version 2>/dev/null || echo 'ok')"
   exit 0
