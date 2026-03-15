@@ -9,7 +9,8 @@ Given FD identifier: $ARGUMENTS
 3. Read the SDD template from `.forgia/sdd/_templates/sdd-template.md`
 4. Read the constitution from `.forgia/constitution.md`
 5. Read the dev-guide from `.forgia/dev-guide/` (general files)
-6. Read language-specific conventions from `.forgia/dev-guide/lang/` — load only the files relevant to each SDD's language/stack
+6. Read principles from `.forgia/dev-guide/principles/` (clean-code, SOLID, design-patterns)
+7. Read language-specific conventions from `.forgia/dev-guide/lang/` — load only the files relevant to each SDD's language/stack
 7. For each component listed in "SDD Previsti" in the FD, create an SDD:
    - Create directory `.forgia/sdd/FD-NNN/`
    - Create `SDD-001-kebab-name.md`, `SDD-002-kebab-name.md`, etc.

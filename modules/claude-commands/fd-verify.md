@@ -7,7 +7,8 @@ Given FD identifier: $ARGUMENTS
 1. Read the specified FD file from `.forgia/fd/`
 2. Read all SDDs in `.forgia/sdd/FD-NNN/`
 3. Read the constitution from `.forgia/constitution.md`
-4. Read language-specific conventions from `.forgia/dev-guide/lang/` — use them to validate code style and patterns
+4. Read principles from `.forgia/dev-guide/principles/` (clean-code, SOLID, design-patterns)
+5. Read language-specific conventions from `.forgia/dev-guide/lang/` — use them to validate code style and patterns
 5. For each SDD, verify:
    - Status is "done"
    - Work Log is filled (Agent, Decisions, Output, Retrospective sections)

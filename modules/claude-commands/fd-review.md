@@ -7,8 +7,9 @@ Given FD identifier: $ARGUMENTS
 1. Read the specified FD file from `.forgia/fd/`
 2. Read the project constitution from `.forgia/constitution.md`
 3. Read the dev-guide conventions from `.forgia/dev-guide/` (general files)
-4. Read language-specific conventions from `.forgia/dev-guide/lang/` — load ALL files present (they were auto-detected during `forgia init`)
-5. Perform the review by checking EVERY item:
+4. Read principles from `.forgia/dev-guide/principles/` (clean-code, SOLID, design-patterns)
+5. Read language-specific conventions from `.forgia/dev-guide/lang/` — load ALL files present (they were auto-detected during `forgia init`)
+6. Perform the review by checking EVERY item:
 
 ### Problem Definition
 - [ ] Problem is clearly defined (not vague or too broad)

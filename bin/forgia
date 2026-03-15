@@ -68,6 +68,11 @@ cmd_init() {
   cp "$tmpl_dir/dev-guide/"*.md "$VAULT_DIR/dev-guide/" 2>/dev/null || true
   echo "  Created: dev-guide/"
 
+  # Principles (always loaded — clean code, SOLID, design patterns)
+  mkdir -p "$VAULT_DIR/dev-guide/principles"
+  cp "$tmpl_dir/dev-guide/principles/"*.md "$VAULT_DIR/dev-guide/principles/"
+  echo "  Created: dev-guide/principles/ (clean-code, solid, design-patterns)"
+
   # Language detection — auto-load relevant conventions
   mkdir -p "$VAULT_DIR/dev-guide/lang"
   local lang_dir="$tmpl_dir/dev-guide/lang"
