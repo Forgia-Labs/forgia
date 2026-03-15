@@ -125,17 +125,36 @@ map_labels_to_priority() {
 fetch_github_issue() {
   local repo="$1" number="$2" tmpdir="$3" fetch_comments="$4"
 
-  # Single API call, extract fields with --jq
-  gh api "repos/$repo/issues/$number" --jq '.title' > "$tmpdir/title" 2>/dev/null || {
+  # Fetch the full issue JSON once (1 API call instead of 6)
+  gh api "repos/$repo/issues/$number" > "$tmpdir/issue.json" 2>/dev/null || {
     echo "Error: Could not fetch issue #$number from $repo" >&2
     echo "  Check that the issue exists and you have access." >&2
     return 1
   }
-  gh api "repos/$repo/issues/$number" --jq '.body // empty' > "$tmpdir/body" 2>/dev/null || true
-  gh api "repos/$repo/issues/$number" --jq '[.labels[].name] | join(", ")' > "$tmpdir/labels" 2>/dev/null || true
-  gh api "repos/$repo/issues/$number" --jq '.assignee.login // empty' > "$tmpdir/assignee" 2>/dev/null || true
-  gh api "repos/$repo/issues/$number" --jq '.milestone.title // empty' > "$tmpdir/milestone" 2>/dev/null || true
-  gh api "repos/$repo/issues/$number" --jq '.state' > "$tmpdir/state" 2>/dev/null || true
+
+  # Extract fields from cached JSON using python3 (available on macOS/Linux)
+  # Falls back to per-field gh api calls if python3 is unavailable
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json, sys, os
+d = json.load(open('$tmpdir/issue.json'))
+td = '$tmpdir'
+open(os.path.join(td,'title'),'w').write(d.get('title',''))
+open(os.path.join(td,'body'),'w').write(d.get('body','') or '')
+open(os.path.join(td,'labels'),'w').write(', '.join(l['name'] for l in d.get('labels',[])))
+open(os.path.join(td,'assignee'),'w').write((d.get('assignee') or {}).get('login',''))
+open(os.path.join(td,'milestone'),'w').write((d.get('milestone') or {}).get('title',''))
+open(os.path.join(td,'state'),'w').write(d.get('state',''))
+"
+  else
+    # Fallback: individual --jq calls (6 API requests)
+    gh api "repos/$repo/issues/$number" --jq '.title' > "$tmpdir/title" 2>/dev/null || true
+    gh api "repos/$repo/issues/$number" --jq '.body // empty' > "$tmpdir/body" 2>/dev/null || true
+    gh api "repos/$repo/issues/$number" --jq '[.labels[].name] | join(", ")' > "$tmpdir/labels" 2>/dev/null || true
+    gh api "repos/$repo/issues/$number" --jq '.assignee.login // empty' > "$tmpdir/assignee" 2>/dev/null || true
+    gh api "repos/$repo/issues/$number" --jq '.milestone.title // empty' > "$tmpdir/milestone" 2>/dev/null || true
+    gh api "repos/$repo/issues/$number" --jq '.state' > "$tmpdir/state" 2>/dev/null || true
+  fi
 
   if [[ "$fetch_comments" == "true" ]]; then
     gh api "repos/$repo/issues/$number/comments" --jq '.[].body' > "$tmpdir/comments" 2>/dev/null || true
@@ -156,27 +175,30 @@ cmd_fd_from_issue() {
   local no_comments=false
   local dry_run=false
 
-  # Parse args
-  for arg in "$@"; do
-    case "$arg" in
-      --repo=*) repo_arg="${arg#--repo=}" ;;
-      --context=*) extra_context+=("${arg#--context=}") ;;
+  # Parse args (supports both --repo=VALUE and --repo VALUE forms)
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repo=*) repo_arg="${1#--repo=}" ;;
+      --repo) repo_arg="${2:?--repo requires a value}"; shift ;;
+      --context=*) extra_context+=("${1#--context=}") ;;
+      --context) extra_context+=("${2:?--context requires a value}"); shift ;;
       --no-comments) no_comments=true ;;
       --dry-run) dry_run=true ;;
       -*)
-        echo "Error: Unknown option '$arg'" >&2
-        echo "Usage: forgia fd-from-issue <issue-number> [--repo=OWNER/REPO] [--context=PATH] [--no-comments] [--dry-run]" >&2
+        echo "Error: Unknown option '$1'" >&2
+        echo "Usage: forgia fd-from-issue <issue-number> [--repo OWNER/REPO] [--context PATH] [--no-comments] [--dry-run]" >&2
         exit 1
         ;;
       *)
         if [[ -z "$issue_number" ]]; then
-          issue_number="$arg"
+          issue_number="$1"
         else
-          echo "Error: Unexpected argument '$arg'" >&2
+          echo "Error: Unexpected argument '$1'" >&2
           exit 1
         fi
         ;;
     esac
+    shift
   done
 
   if [[ -z "$issue_number" ]]; then
@@ -221,7 +243,10 @@ cmd_fd_from_issue() {
   # Create temp dir for issue data
   local tmpdir
   tmpdir=$(mktemp -d)
-  trap "rm -rf '$tmpdir'" EXIT
+  # Save existing EXIT trap and chain our cleanup onto it
+  local _prev_trap
+  _prev_trap=$(trap -p EXIT | sed "s/trap -- '//;s/' EXIT//" || true)
+  trap "rm -rf '$tmpdir'; ${_prev_trap:-:}" EXIT
 
   local fetch_comments="true"
   [[ "$no_comments" == "true" ]] && fetch_comments="false"
