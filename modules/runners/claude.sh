@@ -144,8 +144,12 @@ if [[ "$can_worktree" == "true" ]]; then
 
   git worktree add -b "$branch_name" "$worktree_dir" HEAD 2>/dev/null
 
+  # Write prompt to temp file to avoid pipe/ARG_MAX issues
+  prompt_file=$(mktemp)
+  echo "$prompt" > "$prompt_file"
   # Run in worktree
-  (cd "$worktree_dir" && echo "$prompt" | claude "${claude_args[@]}" --print)
+  (cd "$worktree_dir" && claude "${claude_args[@]}" --print < "$prompt_file")
+  rm -f "$prompt_file"
 
   # Merge back if there are changes
   if (cd "$worktree_dir" && git diff --quiet HEAD 2>/dev/null); then
@@ -161,8 +165,12 @@ else
   if [[ "$use_worktree" == "true" ]]; then
     echo "  Warning: worktree requested but no commits exist — running directly"
   fi
+  # Write prompt to temp file to avoid pipe/ARG_MAX issues
+  prompt_file=$(mktemp)
+  echo "$prompt" > "$prompt_file"
   # Run directly (no worktree isolation)
-  echo "$prompt" | claude "${claude_args[@]}" --print
+  claude "${claude_args[@]}" --print < "$prompt_file"
+  rm -f "$prompt_file"
 fi
 
 echo ""
