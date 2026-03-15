@@ -129,6 +129,17 @@ cmd_init() {
   cp "$tmpl_dir/ops/_templates/ops-task.md" "$VAULT_DIR/ops/_templates/"
   echo "  Created: ops/_templates/ops-task.md"
 
+  # Guardrails (security deny/ignore)
+  mkdir -p "$VAULT_DIR/guardrails"
+  if [[ ! -f "$VAULT_DIR/guardrails/deny.toml" ]]; then
+    cp "$tmpl_dir/guardrails/deny.toml" "$VAULT_DIR/guardrails/"
+    echo "  Created: guardrails/deny.toml"
+  fi
+  if [[ ! -f "$VAULT_DIR/guardrails/ignore" ]]; then
+    cp "$tmpl_dir/guardrails/ignore" "$VAULT_DIR/guardrails/"
+    echo "  Created: guardrails/ignore"
+  fi
+
   # Dev guide (always update)
   cp "$tmpl_dir/dev-guide/"*.md "$VAULT_DIR/dev-guide/" 2>/dev/null || true
   echo "  Created: dev-guide/"
@@ -276,6 +287,25 @@ cmd_doctor() {
     ok=$((ok + 1))
   else
     printf "  %-25s MISSING\n" "constitution"
+    warn=$((warn + 1))
+  fi
+
+  # Check guardrails
+  if [[ -f "$VAULT_DIR/guardrails/deny.toml" ]]; then
+    local deny_count
+    deny_count=$(grep -c 'patterns' "$VAULT_DIR/guardrails/deny.toml" 2>/dev/null || echo "0")
+    printf "  %-25s OK (%s sections)\n" "guardrails (deny.toml)" "$deny_count"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s MISSING (run: forgia init)\n" "guardrails (deny.toml)"
+    warn=$((warn + 1))
+  fi
+
+  if [[ -f "$VAULT_DIR/guardrails/ignore" ]]; then
+    printf "  %-25s OK\n" "guardrails (ignore)"
+    ok=$((ok + 1))
+  else
+    printf "  %-25s MISSING (run: forgia init)\n" "guardrails (ignore)"
     warn=$((warn + 1))
   fi
 

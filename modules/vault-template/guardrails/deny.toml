@@ -1,0 +1,125 @@
+# Forgia Guardrails — Deny List
+# Patterns the agent must NEVER access during SDD execution.
+# Loaded by runners and injected into agent prompts.
+#
+# Syntax: glob patterns, one per line in the array.
+# These are fail-closed — if in doubt, deny.
+
+[read]
+# Files the agent must NEVER read or include in context
+patterns = [
+  # Secrets and environment
+  "**/.env",
+  "**/.env.*",
+  "!**/.env.example",
+  "!**/.env.template",
+
+  # Certificates and keys
+  "**/*.pem",
+  "**/*.key",
+  "**/*.p12",
+  "**/*.pfx",
+  "**/*.jks",
+  "**/*.keystore",
+
+  # Cloud credentials
+  "**/.aws/credentials",
+  "**/.aws/config",
+  "**/.azure/**",
+  "**/.gcloud/**",
+
+  # Auth tokens and configs
+  "**/.netrc",
+  "**/.npmrc",
+  "**/.pypirc",
+  "**/.docker/config.json",
+  "**/credentials.json",
+
+  # Kubernetes
+  "**/kubeconfig",
+  "**/kubeconfig.*",
+
+  # SSH and GPG
+  "**/.ssh/id_*",
+  "**/.ssh/*key*",
+  "**/.gnupg/**",
+
+  # Password stores
+  "**/.password-store/**",
+  "**/.vaults/**",
+
+  # macOS keychain
+  "**/*.keychain",
+  "**/*.keychain-db",
+
+  # Terraform state (contains secrets)
+  "**/*.tfstate",
+  "**/*.tfstate.backup",
+]
+
+[execute]
+# Commands the agent must NEVER run
+patterns = [
+  # Read private keys
+  "cat ~/.ssh/id_*",
+  "cat ~/.ssh/*key*",
+  "base64 ~/.ssh/*",
+  "xxd ~/.ssh/*",
+
+  # GPG secrets
+  "cat ~/.gnupg/*",
+  "base64 ~/.gnupg/*",
+  "xxd ~/.gnupg/*",
+  "gpg --export-secret*",
+
+  # Password managers
+  "pass show*",
+  "pass *",
+  "bw get *",
+  "bw list *",
+  "op item get *",
+
+  # Environment secrets enumeration
+  "echo $ANTHROPIC_API_KEY*",
+  "echo $OPENAI_API_KEY*",
+  "echo $GEMINI_API_KEY*",
+  "echo $GITHUB_TOKEN*",
+  "echo $AWS_SECRET*",
+  "env | grep -i key*",
+  "env | grep -i token*",
+  "env | grep -i secret*",
+  "env | grep -i password*",
+
+  # Cloud credentials
+  "cat ~/.aws/credentials*",
+  "cat ~/.azure/*",
+  "cat ~/.gcloud/*",
+
+  # macOS keychain
+  "security find-generic-password*",
+  "security find-internet-password*",
+
+  # Certificates
+  "cat *.pem",
+  "cat *.key",
+  "cat *.p12",
+]
+
+[write]
+# Files the agent must NEVER create or modify
+patterns = [
+  # Secrets
+  "**/.env",
+  "**/.env.*",
+  "!**/.env.example",
+
+  # Forgia meta (immutable)
+  ".forgia/constitution.md",
+  ".forgia/config.toml",
+  ".forgia/guardrails/deny.toml",
+
+  # Certificates
+  "**/*.pem",
+  "**/*.key",
+  "**/*.p12",
+]

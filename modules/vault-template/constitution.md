@@ -20,7 +20,16 @@
 - Tests are required for every SDD (type and coverage defined in the SDD itself)
 - No silent fallbacks — errors must be explicit
 - No backwards-compatibility hacks — if deprecated, remove it
-- Security: no hardcoded secrets, no command injection, validate at system boundaries
+
+## Security
+
+- **Guardrails are absolute** — `.forgia/guardrails/deny.toml` defines what agents CANNOT do
+- No hardcoded secrets — use environment variables or secret managers
+- No command injection — validate and sanitize all external input
+- Validate at system boundaries (user input, external APIs), trust internal code
+- Agents must use placeholders for secret values, never real credentials
+- If an agent encounters a file that might contain secrets, it must SKIP and warn
+- The deny list is fail-closed: if a pattern matches, the action is blocked
 
 ## Commit Conventions
 

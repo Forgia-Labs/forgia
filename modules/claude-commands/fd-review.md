@@ -28,10 +28,12 @@ Given FD identifier: $ARGUMENTS
 - [ ] Each SDD has a clear, isolated scope
 - [ ] Interfaces between SDDs are defined (contracts)
 
-### Constitution Compliance
+### Constitution & Security Compliance
 - [ ] Respects all principles in constitution.md
-- [ ] Security considerations addressed
 - [ ] No violations of code standards
+- [ ] Security guardrails reviewed (`.forgia/guardrails/deny.toml`)
+- [ ] No proposed interfaces expose or require secrets in plaintext
+- [ ] No file patterns in the FD would violate deny.toml read/write/execute rules
 
 ### Verification
 - [ ] Verification criteria are defined and sufficient
