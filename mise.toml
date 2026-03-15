@@ -29,6 +29,56 @@ description = "Osserva e esegui nuovi SDD automaticamente"
 usage = "mise run sdd:watch <FD-NNN> [--runner=claude|openhands]"
 run = "{{source_dir}}/bin/forgia watch $@"
 
+# --- Beads (bd) task tracker ---
+
+[tasks."bd:install"]
+description = "Installa Beads (bd) task tracker"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v bd >/dev/null 2>&1; then
+  echo "✓ bd already installed: $(bd --version 2>/dev/null || echo 'ok')"
+  exit 0
+fi
+
+if command -v npm >/dev/null 2>&1; then
+  echo "→ Installing bd via npm..."
+  npm install -g @beads/bd
+elif command -v brew >/dev/null 2>&1; then
+  echo "→ Installing bd via brew..."
+  brew install beads
+else
+  echo "Error: npm or brew required to install bd" >&2
+  exit 1
+fi
+
+echo "✓ bd installed"
+"""
+
+[tasks."bd:init"]
+description = "Inizializza Beads nel progetto"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -d ".beads" ]]; then
+  echo "✓ Beads already initialized"
+  exit 0
+fi
+
+bd init
+echo "✓ Beads initialized"
+"""
+
+[tasks."bd:ready"]
+description = "Mostra task sbloccati e pronti per esecuzione"
+run = "bd ready"
+
+[tasks."bd:status"]
+description = "Mostra stato completo del task graph"
+run = "bd status"
+
 # --- OpenHands tasks ---
 
 [tasks."openhands:install"]

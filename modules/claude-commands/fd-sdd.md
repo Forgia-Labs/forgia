@@ -24,14 +24,20 @@ Given FD identifier: $ARGUMENTS
      - **Context**: files to read, existing code to understand
      - **Constitution Check**: pre-filled from constitution.md
      - **Work Log**: empty, ready to be filled by the agent
-7. Update the FD status to "in-progress"
-8. Show the user:
+8. Update the FD status to "in-progress"
+9. **Beads integration** (if `bd` is available and `.beads/` exists):
+   - Create a bd epic for the FD: `bd create "FD-NNN: <title>" --type=epic`
+   - For each SDD, create a bd subtask: `bd create "SDD-NNN: <title>" --parent=<epic-id>`
+   - Add dependencies between SDDs if they have interface contracts
+   - Tag each bd task with the SDD id for cross-reference
+10. Show the user:
    - List of generated SDDs with file paths
+   - Beads epic and task IDs (if created)
    - Suggested next steps:
      - Review each SDD for completeness
-     - Assign agent: `/sdd-assign SDD-001`
-     - Or execute directly: `mise run sdd .forgia/sdd/FD-NNN/SDD-001.md`
-     - Or batch execute: `mise run sdd:batch FD-NNN`
+     - Execute directly: `forgia exec .forgia/sdd/FD-NNN/SDD-001.md`
+     - Batch execute: `forgia batch FD-NNN`
+     - Check ready tasks: `bd ready`
 
 ## Important
 
@@ -40,3 +46,4 @@ Given FD identifier: $ARGUMENTS
 - The SDD is an agent-ready prompt, not traditional documentation
 - Include enough context that the agent can work autonomously
 - Cross-reference interfaces between SDDs so they produce compatible code
+- Beads tasks mirror SDDs — they are NOT a replacement, they add dependency tracking

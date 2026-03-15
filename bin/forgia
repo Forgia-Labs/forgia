@@ -172,6 +172,20 @@ cmd_init() {
     echo "  Loaded conventions: dev-guide/lang/{${detected[*]}}.md"
   fi
 
+  # Beads (bd) initialization
+  if command -v bd >/dev/null 2>&1; then
+    if [[ ! -d ".beads" ]]; then
+      echo ""
+      echo "→ Initializing Beads task tracker..."
+      bd init 2>/dev/null || true
+      echo "  Created: .beads/"
+    else
+      echo "  Beads: already initialized"
+    fi
+  else
+    echo "  Beads: not installed (optional — run: mise run bd:install)"
+  fi
+
   echo ""
   echo "✓ Vault scaffolded at $VAULT_DIR/"
   echo ""
@@ -250,6 +264,14 @@ cmd_status() {
   fi
   echo ""
 
+  # Beads ready tasks
+  if command -v bd >/dev/null 2>&1 && [[ -d ".beads" ]]; then
+    echo ""
+    echo "--- Beads (ready tasks) ---"
+    bd ready 2>/dev/null || echo "  (no ready tasks)"
+  fi
+
+  echo ""
   echo "Summary: $fd_count FDs, $sdd_count SDDs, $ops_count active tasks"
 }
 
@@ -333,6 +355,22 @@ cmd_doctor() {
     warn=$((warn + 1))
   fi
 
+  # Check Beads (bd)
+  if command -v bd >/dev/null 2>&1; then
+    printf "  %-25s OK\n" "beads (bd)"
+    ok=$((ok + 1))
+    if [[ -d ".beads" ]]; then
+      printf "  %-25s OK\n" "beads repo (.beads/)"
+      ok=$((ok + 1))
+    else
+      printf "  %-25s NOT INITIALIZED (run: bd init)\n" "beads repo (.beads/)"
+      warn=$((warn + 1))
+    fi
+  else
+    printf "  %-25s NOT INSTALLED (run: mise run bd:install)\n" "beads (bd)"
+    warn=$((warn + 1))
+  fi
+
   # Check LLM key
   if [[ -n "${ANTHROPIC_API_KEY:-}" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
     printf "  %-25s OK\n" "llm api key"
@@ -370,6 +408,21 @@ cmd_exec() {
   if [[ -f "$sdd_file" ]]; then
     sed -i.bak 's/^status: .*/status: done/' "$sdd_file"
     rm -f "${sdd_file}.bak"
+  fi
+
+  # Close corresponding bd task if it exists
+  if command -v bd >/dev/null 2>&1 && [[ -d ".beads" ]]; then
+    local sdd_id
+    sdd_id=$(grep '^id:' "$sdd_file" 2>/dev/null | head -1 | sed 's/id: *//')
+    if [[ -n "$sdd_id" ]]; then
+      # Find bd task tagged with this SDD id and close it
+      local bd_task_id
+      bd_task_id=$(bd search "$sdd_id" --format=json 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//') || true
+      if [[ -n "$bd_task_id" ]]; then
+        bd update "$bd_task_id" --status=done 2>/dev/null || true
+        echo "  → Beads task $bd_task_id closed"
+      fi
+    fi
   fi
 }
 
