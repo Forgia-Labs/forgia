@@ -128,7 +128,13 @@ fi
 
 # Session isolation: --no-conversation-history ensures a fresh context
 # Each SDD runs in its own session with only its spec + conventions loaded
-if [[ "$use_worktree" == "true" ]]; then
+# Check if worktree is possible (needs at least one commit)
+can_worktree="false"
+if [[ "$use_worktree" == "true" ]] && git rev-parse HEAD >/dev/null 2>&1; then
+  can_worktree="true"
+fi
+
+if [[ "$can_worktree" == "true" ]]; then
   # Create temporary worktree for full git isolation
   worktree_dir=$(mktemp -d)
   branch_name="forgia/${sdd_id:-sdd}-$(date +%s)"
@@ -152,6 +158,9 @@ if [[ "$use_worktree" == "true" ]]; then
     echo "  Merge with: git merge $branch_name"
   fi
 else
+  if [[ "$use_worktree" == "true" ]]; then
+    echo "  Warning: worktree requested but no commits exist — running directly"
+  fi
   # Run directly (no worktree isolation)
   echo "$prompt" | claude "${claude_args[@]}" --print
 fi
