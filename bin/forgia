@@ -635,17 +635,72 @@ cmd_watch() {
   echo "  Waiting for new SDDs... (Ctrl+C to stop)"
   echo ""
 
-  # Track already-processed files and existing files
+  # Track already-processed files
   local processed_file
   processed_file=$(mktemp)
 
-  # Pre-populate with existing SDD files (don't re-execute them)
+  # Pre-populate with files that are already done or in-progress (skip them)
+  # Files with status: planned are NOT skipped — they need execution
   for existing in "$sdd_dir"/SDD-*.md; do
-    [[ -f "$existing" ]] && echo "$existing" >> "$processed_file"
+    [[ -f "$existing" ]] || continue
+    local existing_status
+    existing_status=$(grep '^status:' "$existing" 2>/dev/null | head -1 | sed 's/status: *//' || echo "")
+    if [[ "$existing_status" == "done" ]] || [[ "$existing_status" == "in-progress" ]]; then
+      echo "$existing" >> "$processed_file"
+    fi
   done
+
+  # Execute any existing planned SDDs first
+  local pending_count=0
+  for existing in "$sdd_dir"/SDD-*.md; do
+    [[ -f "$existing" ]] || continue
+    if grep -qF "$existing" "$processed_file" 2>/dev/null; then
+      continue
+    fi
+    pending_count=$((pending_count + 1))
+  done
+
+  if (( pending_count > 0 )); then
+    echo "  Found $pending_count pending SDD(s) — executing now..."
+    echo ""
+  fi
 
   local watch_start=$SECONDS
   local exec_count=0
+
+  # Execute pending SDDs immediately
+  for existing in "$sdd_dir"/SDD-*.md; do
+    [[ -f "$existing" ]] || continue
+    if grep -qF "$existing" "$processed_file" 2>/dev/null; then
+      continue
+    fi
+
+    local sdd_name
+    sdd_name=$(basename "$existing")
+    local elapsed=$(( SECONDS - watch_start ))
+    local mins=$(( elapsed / 60 )) secs=$(( elapsed % 60 ))
+
+    echo "$existing" >> "$processed_file"
+    exec_count=$((exec_count + 1))
+
+    printf "┌── [%02d:%02d] Pending SDD: %s\n" "$mins" "$secs" "$sdd_name"
+    echo "│   Launching exec (runner: $runner)..."
+    echo "│"
+
+    if cmd_exec "$existing" --runner="$runner"; then
+      local end_elapsed=$(( SECONDS - watch_start ))
+      local end_mins=$(( end_elapsed / 60 )) end_secs=$(( end_elapsed % 60 ))
+      printf "└── [%02d:%02d] %s DONE\n" "$end_mins" "$end_secs" "$sdd_name"
+    else
+      printf "└── [%02d:%02d] %s FAILED\n" "$end_mins" "$end_secs" "$sdd_name"
+    fi
+    echo ""
+  done
+
+  if (( exec_count > 0 )); then
+    echo "  $exec_count pending SDD(s) executed. Now watching for new ones..."
+    echo ""
+  fi
 
   # Watch for new SDD files
   fswatch -0 --event Created --event Updated "$sdd_dir" | while IFS= read -r -d '' file; do
