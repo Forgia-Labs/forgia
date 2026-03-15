@@ -1,4 +1,0 @@
-[
-  {"body": "We should also consider using the limit_req module.", "user": {"login": "maintainer1"}},
-  {"body": "+1 on this, blocked by it for production.", "user": {"login": "contributor2"}}
-]
