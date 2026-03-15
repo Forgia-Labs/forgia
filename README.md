@@ -35,6 +35,9 @@ You ──→ FD (what & why) ──→ SDD (how, for agents) ──→ Agent �
 git clone git@github.com:Deepzima/forgia.git
 cd forgia
 
+# Trust the mise config to allow running tasks
+mise trust 
+
 # Install Claude Code slash commands
 mise run claude:install
 
