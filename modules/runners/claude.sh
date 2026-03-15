@@ -20,9 +20,9 @@ max_turns="200"
 use_worktree="true"
 
 if [[ -f "$CONFIG_FILE" ]]; then
-  auto_approve=$(grep -A5 '\[runner\.claude\]' "$CONFIG_FILE" | grep 'auto_approve' | sed 's/.*= *//' | tr -d ' ' || echo "true")
-  max_turns=$(grep -A5 '\[runner\.claude\]' "$CONFIG_FILE" | grep 'max_turns' | sed 's/.*= *//' | tr -d ' ' || echo "200")
-  use_worktree=$(grep -A5 '\[runner\.claude\]' "$CONFIG_FILE" | grep 'worktree' | sed 's/.*= *//' | tr -d ' ' || echo "true")
+  auto_approve=$(grep -A5 '\[runner\.claude\]' "$CONFIG_FILE" | grep -v '^#' | grep 'auto_approve' | head -1 | sed 's/.*= *//' | tr -d ' ' || echo "true")
+  max_turns=$(grep -A5 '\[runner\.claude\]' "$CONFIG_FILE" | grep -v '^#' | grep 'max_turns' | head -1 | sed 's/.*= *//' | tr -d ' ' || echo "200")
+  use_worktree=$(grep -A5 '\[runner\.claude\]' "$CONFIG_FILE" | grep -v '^#' | grep 'worktree' | head -1 | sed 's/.*= *//' | tr -d ' ' || echo "true")
 fi
 
 # Extract SDD metadata
