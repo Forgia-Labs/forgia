@@ -138,6 +138,33 @@ run = "bd ready"
 description = "Mostra stato completo del task graph"
 run = "bd status"
 
+[tasks."bd:reset"]
+description = "Reset Beads circuit breaker e riavvia dolt"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "→ Stopping dolt..."
+bd dolt stop 2>/dev/null || true
+
+echo "→ Clearing circuit breaker state..."
+rm -f /tmp/beads-dolt-circuit-*.json
+rm -f /private/tmp/beads-dolt-circuit-*.json
+echo "  Removed circuit breaker files"
+
+echo "→ Starting dolt..."
+bd dolt start
+
+echo "→ Verifying..."
+if bd list >/dev/null 2>&1; then
+  echo "✓ Beads is working"
+  bd list
+else
+  echo "✗ Beads still not working — check: bd dolt logs"
+  exit 1
+fi
+"""
+
 # --- OpenHands tasks ---
 
 [tasks."openhands:install"]

@@ -427,8 +427,21 @@ cmd_doctor() {
     printf "  %-25s OK\n" "beads (bd)"
     ok=$((ok + 1))
     if [[ -d ".beads" ]]; then
-      printf "  %-25s OK\n" "beads repo (.beads/)"
-      ok=$((ok + 1))
+      # Check circuit breaker state
+      local cb_tripped=false
+      for cb_file in /tmp/beads-dolt-circuit-*.json /private/tmp/beads-dolt-circuit-*.json; do
+        if [[ -f "$cb_file" ]] && grep -q '"state":"open"' "$cb_file" 2>/dev/null; then
+          cb_tripped=true
+          break
+        fi
+      done
+      if [[ "$cb_tripped" == "true" ]]; then
+        printf "  %-25s CIRCUIT BREAKER OPEN (run: mise run bd:reset)\n" "beads repo (.beads/)"
+        warn=$((warn + 1))
+      else
+        printf "  %-25s OK\n" "beads repo (.beads/)"
+        ok=$((ok + 1))
+      fi
     else
       printf "  %-25s NOT INITIALIZED (run: bd init)\n" "beads repo (.beads/)"
       warn=$((warn + 1))
