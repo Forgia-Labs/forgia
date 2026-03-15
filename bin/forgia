@@ -17,7 +17,6 @@ Incantesimi (comandi):
   batch <FD-NNN> [--runner=X]   Esegui tutti gli SDD di un FD
   watch <FD-NNN> [--runner=X]   Osserva e esegui nuovi SDD automaticamente
 
-
 Runner:
   --runner=claude               Claude Code sub-agent (usa Max subscription)
   --runner=openhands            OpenHands container (usa API key)
@@ -766,7 +765,6 @@ main() {
     exec)     cmd_exec "$@" ;;
     batch)    cmd_batch "$@" ;;
     watch)    cmd_watch "$@" ;;
-
     *)       usage; exit 1 ;;
   esac
 }
