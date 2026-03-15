@@ -78,6 +78,11 @@ if [[ -f "$VAULT_DIR/constitution.md" ]]; then
   constitution=$(cat "$VAULT_DIR/constitution.md")
 fi
 
+guardrails=""
+if [[ -f "$VAULT_DIR/guardrails/deny.toml" ]]; then
+  guardrails=$(cat "$VAULT_DIR/guardrails/deny.toml")
+fi
+
 # Write the full prompt to a temp file (mounted into container)
 prompt_file=$(mktemp)
 cat > "$prompt_file" <<PROMPT
@@ -85,6 +90,17 @@ You are executing an SDD (Spec-Driven Development) task. Follow the spec exactly
 
 ## Constitution
 $constitution
+
+## Security Guardrails — MANDATORY
+The following deny list is ABSOLUTE. Violating any rule is a critical failure.
+
+$guardrails
+
+Summary of guardrails:
+- NEVER read files matching [read] patterns (secrets, keys, credentials)
+- NEVER execute commands matching [execute] patterns (key export, env enumeration)
+- NEVER write to files matching [write] patterns (secrets, forgia meta)
+- If you need a secret value, use a placeholder and instruct the user to set it
 
 ## Coding Principles & Conventions
 $context
@@ -94,11 +110,12 @@ $sdd_content
 
 ## Instructions
 1. Read and understand the full SDD above
-2. Implement everything in the Scope section
-3. Follow all Constraints and Best Practices
-4. Write tests as specified in Test Requirements
-5. Verify all Acceptance Criteria are met
-6. When done, create a file WORK_LOG.md with:
+2. Review the Security Guardrails — never violate them
+3. Implement everything in the Scope section
+4. Follow all Constraints and Best Practices
+5. Write tests as specified in Test Requirements
+6. Verify all Acceptance Criteria are met
+7. When done, create a file WORK_LOG.md with:
    - Agent: openhands
    - Date: $(date +%Y-%m-%d)
    - Decisions: key implementation decisions you made

@@ -58,11 +58,29 @@ if [[ -f "$VAULT_DIR/constitution.md" ]]; then
   constitution=$(cat "$VAULT_DIR/constitution.md")
 fi
 
+# Load guardrails
+guardrails=""
+if [[ -f "$VAULT_DIR/guardrails/deny.toml" ]]; then
+  guardrails=$(cat "$VAULT_DIR/guardrails/deny.toml")
+fi
+
 prompt=$(cat <<PROMPT
 You are executing an SDD (Spec-Driven Development) task. Follow the spec exactly.
 
 ## Constitution
 $constitution
+
+## Security Guardrails — MANDATORY
+The following deny list is ABSOLUTE. Violating any rule is a critical failure.
+
+$guardrails
+
+Summary of guardrails:
+- NEVER read files matching [read] patterns (secrets, keys, credentials)
+- NEVER execute commands matching [execute] patterns (key export, env enumeration)
+- NEVER write to files matching [write] patterns (secrets, forgia meta)
+- If you need a secret value, use a placeholder and instruct the user to set it
+- If you encounter a file that might contain secrets, SKIP it and warn the user
 
 ## Coding Principles & Conventions
 $context
@@ -72,17 +90,18 @@ $sdd_content
 
 ## Instructions
 1. Read and understand the full SDD above
-2. Implement everything in the Scope section
-3. Follow all Constraints and Best Practices
-4. Write tests as specified in Test Requirements
-5. Verify all Acceptance Criteria are met
-6. When done, update the Work Log section of the SDD file ($SDD_FILE) with:
+2. Review the Security Guardrails — never violate them
+3. Implement everything in the Scope section
+4. Follow all Constraints and Best Practices
+5. Write tests as specified in Test Requirements
+6. Verify all Acceptance Criteria are met
+7. When done, update the Work Log section of the SDD file ($SDD_FILE) with:
    - Agent: claude-code
    - Date: $(date +%Y-%m-%d)
    - Decisions: key implementation decisions you made
    - Output: files created/modified
    - Retrospective: what went well, what was tricky
-7. Commit your changes with a descriptive message referencing $sdd_id
+8. Commit your changes with a descriptive message referencing $sdd_id
 PROMPT
 )
 

@@ -1,0 +1,71 @@
+# Forgia Ignore — files excluded from agent context
+# Similar to .claudeignore / .codexignore but project-specific.
+# These files will not be loaded into the agent's context window.
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.json
+
+# SSH and GPG
+.ssh/id_*
+.ssh/*key*
+.ssh/authorized_keys
+.gnupg/
+
+# Password stores
+.password-store/
+.vaults/
+*.vc
+
+# Cloud credentials
+.aws/credentials
+.aws/config
+.azure/
+.gcloud/
+
+# Kubernetes
+kubeconfig
+kubeconfig.*
+
+# macOS
+*.keychain
+*.keychain-db
+
+# Auth tokens
+.netrc
+.npmrc
+.pypirc
+.docker/config.json
+
+# Terraform state
+*.tfstate
+*.tfstate.backup
+
+# Build artifacts (save context window)
+node_modules/
+target/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
