@@ -276,11 +276,31 @@ cmd_status() {
   fi
   echo ""
 
+  # Last executions
+  if [[ -d "$VAULT_DIR/logs" ]]; then
+    local json_reports=()
+    for rpt in "$VAULT_DIR"/logs/exec-*.json; do
+      [[ -f "$rpt" ]] && json_reports+=("$rpt")
+    done
+    if (( ${#json_reports[@]} > 0 )); then
+      echo "--- Last Executions ---"
+      for rpt in "${json_reports[@]}"; do
+        local rsdd rduration rstatus
+        rsdd=$(grep '"sdd"' "$rpt" | sed 's/.*: *"//;s/".*//' || echo "?")
+        rduration=$(grep '"duration_seconds"' "$rpt" | sed 's/.*: *//;s/,.*//' || echo "?")
+        rstatus=$(grep '"status"' "$rpt" | sed 's/.*: *"//;s/".*//' || echo "?")
+        local rmins=$((rduration / 60)) rsecs=$((rduration % 60))
+        printf "  %-10s %-10s %dm%ds\n" "$rsdd" "[$rstatus]" "$rmins" "$rsecs"
+      done
+      echo ""
+    fi
+  fi
+
   # Beads ready tasks
   if command -v bd >/dev/null 2>&1 && [[ -d ".beads" ]]; then
-    echo ""
     echo "--- Beads (ready tasks) ---"
     bd ready 2>/dev/null || echo "  (no ready tasks)"
+    echo ""
   fi
 
   echo ""
