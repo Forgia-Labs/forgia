@@ -175,6 +175,13 @@ cmd_init() {
     detected+=("go")
   fi
 
+  # Kubernetes detection
+  if [[ -f "kustomization.yaml" ]] || [[ -f "Chart.yaml" ]] || [[ -f "Tiltfile" ]] || \
+     find . -maxdepth 3 -name '*.crd.yaml' -o -name 'kustomization.yaml' 2>/dev/null | grep -q .; then
+    cp "$lang_dir/kubernetes.md" "$VAULT_DIR/dev-guide/lang/"
+    detected+=("kubernetes")
+  fi
+
   # Shell is always included (every project has scripts)
   cp "$lang_dir/shell.md" "$VAULT_DIR/dev-guide/lang/"
   detected+=("shell")
