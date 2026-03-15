@@ -11,7 +11,7 @@ Create a Feature Design (FD) from a GitHub issue.
 
 2. **Pre-flight checks**:
    - Verify `.forgia/fd/` exists. If not, tell the user: "Vault non inizializzato. Esegui `/project-init` prima."
-   - Verify `gh` CLI is installed by running `which gh`. If not found, tell the user: "gh CLI non trovato. Installa GitHub CLI: https://cli.github.com/"
+   - Verify `gh` CLI is installed by running `command -v gh`. If not found, tell the user: "gh CLI non trovato. Installa GitHub CLI: https://cli.github.com/"
 
 3. **Fetch the issue data**:
    - Try running `forgia fd-from-issue <args> --dry-run` first. If `forgia` CLI is available, parse the draft FD output.
@@ -19,7 +19,7 @@ Create a Feature Design (FD) from a GitHub issue.
      ```
      gh api repos/{owner}/{repo}/issues/{number}
      ```
-   - Extract: `title`, `body`, `labels` (array of name strings), `assignee.login`, `milestone.title`, `milestone.due_on`
+   - Extract: `title`, `body`, `labels` (array of name strings), `assignee.login`, `milestone.title`
    - Fetch comments: `gh api repos/{owner}/{repo}/issues/{number}/comments`
 
 4. **Discover local context**:

@@ -603,11 +603,19 @@ fi
 fdi_output=$("$FORGIA" fd-from-issue 42 --repo=other-org/other-repo --dry-run 2>&1)
 assert_contains "--repo overrides remote inference" "other-org/other-repo" "$fdi_output"
 
+# Test: --repo with space separator works
+fdi_output=$("$FORGIA" fd-from-issue 42 --repo test-org/test-repo --dry-run 2>&1)
+assert_contains "--repo space form works" "Add ingress rate limiting" "$fdi_output"
+
 # Test: --context adds extra paths to notes
 mkdir -p "$FDI_WS/docs/custom"
 echo "# Custom notes" > "$FDI_WS/docs/custom/notes.md"
 fdi_output=$("$FORGIA" fd-from-issue 42 --repo=test-org/test-repo --context=docs/custom/notes.md --dry-run 2>&1)
 assert_contains "--context adds extra paths to notes" "docs/custom/notes.md" "$fdi_output"
+
+# Test: --context with space separator works
+fdi_output=$("$FORGIA" fd-from-issue 42 --repo=test-org/test-repo --context docs/custom/notes.md --dry-run 2>&1)
+assert_contains "--context space form works" "docs/custom/notes.md" "$fdi_output"
 
 # Test: next FD ID increments correctly
 find "$FDI_WS/.forgia/fd" -maxdepth 1 -name 'FD-*.md' -delete 2>/dev/null || true

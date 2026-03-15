@@ -23,6 +23,7 @@ _CD_SKIP_DIRS="node_modules vendor .git target dist build _templates"
 # Collect discovered files into _cd_results array
 # Each entry: "priority|category|path"
 _cd_results=()
+declare -A _cd_seen_paths=()  # O(1) dedup lookup by path
 
 _cd_should_skip_path() {
   local path="$1"
@@ -47,9 +48,8 @@ _cd_check_size() {
   fi
   local size
   size=$(wc -c < "$path" 2>/dev/null) || return 1
-  # Trim whitespace (macOS wc pads)
+  # Trim whitespace (macOS wc pads with leading spaces)
   size="${size##* }"
-  size="${size// /}"
   [[ "$size" -le "$_CD_MAX_SIZE" ]]
 }
 
@@ -61,6 +61,7 @@ _cd_add() {
   if ! _cd_check_size "$path"; then
     return
   fi
+  _cd_seen_paths["$path"]=1
   _cd_results+=("${priority}|${category}|${path}")
 }
 
@@ -86,22 +87,15 @@ _cd_scan_top_level_docs() {
   local matches
   matches=$(find "docs" -maxdepth 1 -name '*.md' -type f 2>/dev/null) || true
   for match in $matches; do
-    # Skip if already found by a more specific pattern
-    local dominated=false
-    for existing in "${_cd_results[@]}"; do
-      local existing_path="${existing#*|}"
-      existing_path="${existing_path#*|}"
-      if [[ "$existing_path" == "$match" ]]; then
-        dominated=true
-        break
-      fi
-    done
-    "$dominated" || _cd_add "$_CD_CAT_DOCS" "Docs" "$match"
+    # Skip if already found by a more specific scanner
+    [[ -n "${_cd_seen_paths[$match]+x}" ]] && continue
+    _cd_add "$_CD_CAT_DOCS" "Docs" "$match"
   done
 }
 
 _cd_discover() {
   _cd_results=()
+  _cd_seen_paths=()
 
   # ADR
   _cd_scan_find "$_CD_CAT_ADR" "ADR" "docs/decisions" 1
@@ -248,8 +242,6 @@ USAGE
     esac
   done
 
-  _CD_MAX_FILES="$max"
-
   # Pre-discover so --include paths are added before formatting
   _cd_discover
 
@@ -274,7 +266,7 @@ USAGE
   fi
 
   local sorted
-  sorted=$(_cd_sorted_results "$_CD_MAX_FILES")
+  sorted=$(_cd_sorted_results "$max")
 
   if [[ -z "$sorted" ]]; then
     return 1

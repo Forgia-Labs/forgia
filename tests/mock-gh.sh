@@ -36,6 +36,13 @@ elif expr == '.state': print(data.get('state', 'open'))
 elif expr == '.assignee.login // empty': print(data.get('assignee', {}).get('login', '') if data.get('assignee') else '')
 elif expr == '.milestone.title // empty': print(data.get('milestone', {}).get('title', '') if data.get('milestone') else '')
 elif expr.startswith('[.labels'): print(', '.join(l['name'] for l in data.get('labels', [])))
+elif '@tsv' in expr:
+    title = data.get('title', '')
+    state = data.get('state', 'open')
+    assignee = (data.get('assignee') or {}).get('login', '')
+    labels = ', '.join(l['name'] for l in data.get('labels', []))
+    milestone = (data.get('milestone') or {}).get('title', '')
+    print('\t'.join([title, state, assignee, labels, milestone]))
 else: json.dump(data, sys.stdout)
 "
         else
@@ -80,6 +87,15 @@ else:
     echo "Error: unknown endpoint: $endpoint" >&2
     exit 1
   fi
+
+elif [[ "$1" == "api" && "$2" == "user" ]]; then
+  # Handle --jq flag
+  if [[ "${3:-}" == "--jq" && "${4:-}" == ".login" ]]; then
+    echo "testuser"
+  else
+    echo '{"login":"testuser","name":"Test User"}'
+  fi
+  exit 0
 
 elif [[ "$1" == "auth" && "$2" == "status" ]]; then
   echo "Logged in to github.com as testuser"
