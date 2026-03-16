@@ -205,15 +205,51 @@ cmd_init() {
     echo "  Beads: not installed (optional — run: mise run bd:install)"
   fi
 
+  # .gitignore for .forgia/ (exclude local-only files)
+  if [[ ! -f "$VAULT_DIR/.gitignore" ]]; then
+    cat > "$VAULT_DIR/.gitignore" <<'GITIGNORE'
+# Local execution artifacts (not shared)
+logs/
+run/
+*.pid
+
+# Beads database (local, not portable)
+.beads/
+GITIGNORE
+    echo "  Created: .gitignore (excludes logs, run, beads)"
+  fi
+
+  # CODEOWNERS template (if .github/ exists)
+  if [[ -d ".github" ]] && [[ ! -f ".github/CODEOWNERS" ]]; then
+    local git_user
+    git_user=$(git config user.name 2>/dev/null || echo "MAINTAINER")
+    cat > ".github/CODEOWNERS" <<OWNERS
+# Forgia vault — protect critical files
+# Edit this file to match your team structure
+
+.forgia/constitution.md           @${git_user}
+.forgia/guardrails/               @${git_user}
+.forgia/architecture/             @${git_user}
+.forgia/contexts/                 @${git_user}
+.forgia/config.toml               @${git_user}
+.forgia/fd/                       *
+.forgia/sdd/                      *
+OWNERS
+    echo "  Created: .github/CODEOWNERS"
+  elif [[ ! -d ".github" ]]; then
+    echo "  Skipped: .github/CODEOWNERS (no .github/ directory)"
+  fi
+
   echo ""
   echo "✓ Vault scaffolded at $VAULT_DIR/"
   echo ""
   echo "Next steps:"
   echo "  1. Edit $VAULT_DIR/constitution.md with your project rules"
   echo "  2. Review $VAULT_DIR/dev-guide/lang/ conventions for your stack"
-  echo "  3. Use /fd-new to create your first Feature Design"
-  echo "  4. Use /fd-review to approve it"
-  echo "  5. Use /fd-sdd to generate execution specs"
+  echo "  3. Commit .forgia/ to share with your team"
+  echo "  4. Use /fd-new to create your first Feature Design"
+  echo "  5. Use /fd-review to approve it"
+  echo "  6. Use /fd-sdd to generate execution specs"
 }
 
 # --- status ---
@@ -233,11 +269,16 @@ cmd_status() {
   for fd in "$VAULT_DIR"/fd/FD-*.md; do
     [[ -f "$fd" ]] || continue
     fd_count=$((fd_count + 1))
-    local id title status
+    local id title status author
     id="$(grep '^id:' "$fd" | head -1 | sed 's/id: *//')"
     title="$(grep '^title:' "$fd" | head -1 | sed 's/title: *"*//;s/"*$//')"
     status="$(grep '^status:' "$fd" | head -1 | sed 's/status: *//')"
-    printf "  %-10s %-12s %s\n" "$id" "[$status]" "$title"
+    author="$(grep '^author:' "$fd" | head -1 | sed 's/author: *"*//;s/"*$//' || true)"
+    if [[ -n "$author" ]]; then
+      printf "  %-10s %-12s %-15s %s\n" "$id" "[$status]" "($author)" "$title"
+    else
+      printf "  %-10s %-12s %s\n" "$id" "[$status]" "$title"
+    fi
   done
   if (( fd_count == 0 )); then
     echo "  (no FDs yet — use /fd-new to create one)"

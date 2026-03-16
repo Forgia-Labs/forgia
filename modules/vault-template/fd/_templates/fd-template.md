@@ -5,6 +5,7 @@ status: planned
 priority: medium
 effort: medium
 impact: medium
+author: "{{AUTHOR}}"
 assignee: ""
 created: "{{DATE}}"
 reviewed: false
