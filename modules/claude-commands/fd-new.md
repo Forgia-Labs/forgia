@@ -2,24 +2,124 @@ Create a new Feature Design (FD) in the Forgia vault.
 
 ## Instructions
 
-1. Ask the user for a brief description of the feature/task if not provided as argument: $ARGUMENTS
-2. Verify `.forgia/fd/` exists. If not, suggest running `/project-init` first
-3. Determine the next FD ID by counting existing FD files in `.forgia/fd/`
-4. Read the FD template from `.forgia/fd/_templates/fd-template.md`
-5. Create the new FD file at `.forgia/fd/FD-NNN-kebab-title.md` with:
-   - Auto-incremented ID (FD-001, FD-002, etc.)
-   - Title from the user's description
-   - Today's date
-   - Status: "planned"
-   - All template sections with placeholder guidance
-6. Pre-populate the "SDD Previsti" section based on the feature scope (suggest component breakdown)
-7. Show the user the created file path and suggest next steps:
-   - Fill in the problem, solutions, and architecture sections
-   - When ready: `/fd-review FD-NNN`
+1. Parse arguments from: $ARGUMENTS
+   Format: `[description or GitHub issue URL/reference] [--repo owner/repo] [--context path]`
+
+   - First argument can be:
+     - A **GitHub issue reference**: URL (`https://github.com/owner/repo/issues/42`), `#42`, or just `42`
+     - A **free-text description** of the feature/task
+     - Omitted — ask the user for a brief description
+   - `--repo owner/repo` (optional): target repository for issue fetch. If omitted, infer from `git remote get-url origin`
+   - `--context path` (optional): additional context file or directory to read
+
+2. **Pre-flight checks**:
+   - Verify `.forgia/fd/` exists. If not, tell the user: "Vault non inizializzato. Esegui `/project-init` prima."
+   - If the argument is a GitHub issue reference, verify `gh` CLI is installed by running `command -v gh`. If not found, tell the user: "gh CLI non trovato. Installa GitHub CLI: https://cli.github.com/"
+
+3. **Determine the source** — GitHub issue or free-text:
+
+   ### Path A: GitHub issue source
+
+   Fetch the issue data using `gh api`:
+   ```
+   gh api repos/{owner}/{repo}/issues/{number}
+   ```
+   - Extract: `title`, `body`, `labels` (array of name strings), `assignee.login`, `milestone.title`
+   - Fetch comments: `gh api repos/{owner}/{repo}/issues/{number}/comments`
+
+   ### Path B: Free-text description
+
+   Use the user's description as the basis for the FD. Ask clarifying questions if the description is too vague.
+
+4. **Discover local context**:
+   - Scan for these files and read any that exist:
+     - `docs/decisions/*.md` (ADRs)
+     - `CONTRIBUTING.md`
+     - `ARCHITECTURE.md`, `docs/ARCHITECTURE.md`
+     - `.forgia/constitution.md`
+     - `.forgia/dev-guide/**/*.md`
+     - `CODE_OF_CONDUCT.md`
+     - `docs/*.md`
+   - If `--context` argument was provided, also read files at that path
+   - **Actually read the content** of all discovered files — do not just list them
+
+5. **Read the FD template** from `.forgia/fd/_templates/fd-template.md` (fallback: `modules/vault-template/fd/_templates/fd-template.md`) to know the exact section structure. The generated FD MUST have ALL sections from this template.
+
+6. **Determine the next FD ID**:
+   - List existing FD files in `.forgia/fd/` (excluding `_templates/`)
+   - Find the highest FD number and increment by 1
+   - Format: `FD-NNN` (zero-padded to 3 digits)
+
+7. **Create the FD** at `.forgia/fd/FD-NNN-kebab-title.md`:
+
+   ### Frontmatter
+   - `id`: the new FD ID
+   - `title`: cleaned title (from issue or description)
+   - `status`: "planned"
+   - `priority`: if from issue — "high" if labels contain "bug", else "medium"; if from description — "medium"
+   - `effort`: "medium" (default)
+   - `impact`: "medium" (default)
+   - `assignee`: from issue assignee if available, or empty
+   - `created`: today's date
+   - `reviewed`: false
+   - `reviewer`: ""
+   - `tags`: from issue labels if available, else `[]`
+   - `upstream_issue`: `"owner/repo#number"` if from issue, omit if from description
+
+   ### Problem / Problema
+   - If from issue: restructure the issue body into a clear problem statement. Extract the "what" and "why" — remove implementation details, code snippets, workarounds. Do NOT dump the raw issue body — rewrite it as a proper problem definition.
+   - If from description: write a clean problem statement from the user's input.
+   - Always write from the user's perspective, technology-agnostic (what, not how).
+
+   ### Solutions Considered / Soluzioni Considerate
+   - Identify solutions mentioned in the issue body/comments or user description
+   - If only one solution is apparent, propose a second alternative with trade-offs
+   - Each option MUST have **Pro:** and **Con / Contro:** items
+   - Mark the recommended option as "(chosen) / (scelta)"
+
+   ### Architecture / Architettura
+   - Generate a **Integration Context** mermaid flowchart showing where the feature integrates in the existing system
+     - Existing components in grey (`fill:#f0f0f0,stroke:#999`)
+     - New components in green (`fill:#d4edda,stroke:#28a745`)
+   - Generate a **Data Flow** mermaid sequence diagram showing component interactions
+   - Base diagrams on information from ARCHITECTURE.md, ADRs, and codebase structure
+   - If the architecture cannot be determined from available context, use `<!-- TODO: fill architecture diagram based on codebase analysis -->` and tell the user
+
+   ### Interfaces / Interfacce
+   - Define component interfaces based on the proposed solution
+   - Fill the interface table: Component, Input, Output, Protocol
+
+   ### Planned SDDs / SDD Previsti
+   - Suggest a component breakdown for SDD generation
+   - At least 1 SDD must be listed
+   - Each entry: `SDD-NNN: description of component scope`
+
+   ### Constraints / Vincoli
+   - Include constraints from: CONTRIBUTING.md rules, milestone deadlines, label-implied constraints
+   - Add technical constraints from discovered context
+
+   ### Verification / Verifica
+   - Create testable verification criteria based on the requirements
+   - Each criterion should be a checkbox item
+
+   ### Notes / Note
+   - If from issue: link to the upstream issue (`Upstream: owner/repo#number`) and include relevant maintainer comments (summarized, not raw dumps)
+   - List all auto-discovered context files as links
+
+8. **Verify the FD was NOT overwritten**: confirm no existing file was modified — only a new file was created.
+
+9. **Show the user** the created file path and suggest next steps:
+   - "FD creato: `.forgia/fd/FD-NNN-kebab-title.md`"
+   - "Prossimo passo: `/fd-review FD-NNN`"
 
 ## Important
 
 - Never modify existing FD files when creating a new one
-- Use `.forgia/fd/` as the vault path (project-local, not ~/Obsidian)
-- Follow the template exactly — do not skip sections
-- The FD must be technology-agnostic in the Problem section (what, not how)
+- Use `.forgia/fd/` as the vault path (project-local)
+- Follow the template exactly — do not skip sections. `/fd-review` will reject the FD if sections are missing
+- The Problem section must be a clean rewrite, NOT a raw dump of the issue body
+- Always include at least 2 solutions with pros/cons — this is a `/fd-review` requirement
+- Architecture mermaid diagrams are MANDATORY — `/fd-review` will reject without them
+- Actually read discovered context files to inform the FD content — don't just link them
+- If any section cannot be determined from available information, use `<!-- TODO: ... -->` markers and tell the user what needs manual input
+- The command must fail gracefully when `gh` is not installed (only affects issue path)
