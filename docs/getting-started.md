@@ -42,11 +42,51 @@ This creates `.forgia/` in your project with:
 
 ### 1. Create a Feature Design
 
+`/fd-new` accepts three types of input:
+
+**Free-text description**
 ```
 /fd-new "Add user authentication"
 ```
 
-This creates `.forgia/fd/FD-001-add-user-authentication.md`.
+**From a GitHub issue**
+
+Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
+
+```
+# Full URL
+/fd-new https://github.com/owner/repo/issues/42
+
+# Short reference (repo inferred from git remote)
+/fd-new #42
+
+# Short reference with explicit repo
+/fd-new #42 --repo owner/repo
+```
+
+**From a GitLab issue**
+
+Requires either a `GITLAB_TOKEN` environment variable or [glab CLI](https://gitlab.com/gitlab-org/cli) installed.
+
+```bash
+export GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx  # read_api scope
+```
+
+```
+# Full URL (host, owner, repo and issue number extracted automatically)
+/fd-new https://gitlab.com/owner/repo/-/issues/42
+
+# Self-hosted GitLab
+/fd-new https://git.example.com/owner/repo/-/issues/42
+
+# Short reference (gl# prefix)
+/fd-new gl#42 --repo owner/repo
+
+# Short reference targeting a self-hosted instance
+/fd-new gl#42 --repo owner/repo --gitlab-host git.example.com
+```
+
+In all cases, this creates `.forgia/fd/FD-NNN-kebab-title.md` with the issue title, labels, assignee, and description pre-filled.
 
 ### 2. Fill in the FD
 
