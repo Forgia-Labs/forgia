@@ -93,7 +93,7 @@ Create a new Feature Design (FD) in the Forgia vault.
    | `milestone.title`                | Constraint note                                 |
    | notes `body` + `author.username` | Notes section (summarized)                      |
 
-   Never echo or log `$GITLAB_TOKEN` in any output visible to the user.
+   Never echo or log `$GITLAB_TOKEN` in any output visible to the user. Note: the token is passed via the `curl -H` flag and will be visible in the process list (`/proc/pid/cmdline`) for the duration of the request — this is standard practice for CLI tools and acceptable given the short-lived nature of the call.
 
    ### Path C: Free-text description
 
