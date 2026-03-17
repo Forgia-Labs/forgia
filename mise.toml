@@ -187,6 +187,28 @@ run = "docker compose -f {{config_root}}/modules/openhands/docker-compose.yml do
 description = "Segui i log di OpenHands"
 run = "docker compose -f {{config_root}}/modules/openhands/docker-compose.yml logs -f"
 
+# --- Go build ---
+
+[tasks."go:build"]
+description = "Build forgia Go binary"
+run = 'go build -ldflags "-X github.com/Deepzima/forgia/cmd/forgia/cmd.Version=${VERSION:-dev}" -o build/forgia ./cmd/forgia'
+
+[tasks."go:test"]
+description = "Run Go tests"
+run = "go test ./..."
+
+[tasks."go:lint"]
+description = "Lint Go code"
+run = "go vet ./..."
+
+[tasks."go:clean"]
+description = "Clean build artifacts"
+run = "rm -rf build/"
+
+[tasks."go:build-linux"]
+description = "Cross-compile for Linux"
+run = 'GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/Deepzima/forgia/cmd/forgia/cmd.Version=${VERSION:-dev}" -o build/forgia-linux-amd64 ./cmd/forgia'
+
 # --- Claude Code integration ---
 
 [tasks."claude:install"]

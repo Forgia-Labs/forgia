@@ -13,8 +13,5 @@ modules/openhands/config.toml
 # Obsidian (when used as vault)
 .obsidian/
 
-# Forgia vault
-.forgia/
-
 # Go build output
 build/
