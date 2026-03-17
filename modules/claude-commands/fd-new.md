@@ -3,31 +3,99 @@ Create a new Feature Design (FD) in the Forgia vault.
 ## Instructions
 
 1. Parse arguments from: $ARGUMENTS
-   Format: `[description or GitHub issue URL/reference] [--repo owner/repo] [--context path]`
-
+   Format: `[description or GitHub/GitLab issue URL/reference] [--repo owner/repo] [--gitlab-host hostname] [--context path]`
    - First argument can be:
      - A **GitHub issue reference**: URL (`https://github.com/owner/repo/issues/42`), `#42`, or just `42`
+     - A **GitLab issue reference**: URL (`https://gitlab.com/owner/repo/-/issues/42`, `https://custom.host/owner/repo/-/issues/42`), or `gl#42`
      - A **free-text description** of the feature/task
      - Omitted — ask the user for a brief description
    - `--repo owner/repo` (optional): target repository for issue fetch. If omitted, infer from `git remote get-url origin`
+   - `--gitlab-host hostname` (optional): GitLab host for self-hosted instances when using `gl#N` or bare number with GitLab target. Default: `gitlab.com`. Not needed when a full URL is provided (host is extracted from the URL).
    - `--context path` (optional): additional context file or directory to read
+
+   **Platform detection rules:**
+   - Argument matches `https://github.com/...` → GitHub
+   - Argument matches `https?://[host]/[path]/-/issues/[0-9]+` → GitLab; extract host, owner/repo path, issue number
+   - Argument matches `gl#[0-9]+` → GitLab; use `--gitlab-host` (default `gitlab.com`) and `--repo`
+   - Argument matches `#[0-9]+` or bare `[0-9]+` → GitHub (default)
+   - Anything else → free-text
+   - Reject malformed references with: `"Riferimento issue non riconosciuto: <argument>. Usa un URL GitHub/GitLab, #N, gl#N, o una descrizione testuale."`
 
 2. **Pre-flight checks**:
    - Verify `.forgia/fd/` exists. If not, tell the user: "Vault non inizializzato. Esegui `/project-init` prima."
-   - If the argument is a GitHub issue reference, verify `gh` CLI is installed by running `command -v gh`. If not found, tell the user: "gh CLI non trovato. Installa GitHub CLI: https://cli.github.com/"
+   - If the argument is a **GitHub issue reference**, verify `gh` CLI is installed by running `command -v gh`. If not found, tell the user: "gh CLI non trovato. Installa GitHub CLI: https://cli.github.com/"
+   - If the argument is a **GitLab issue reference**, verify that at least one of the following is available:
+     - `GITLAB_TOKEN` environment variable is set (non-empty)
+     - `glab` CLI is installed (`command -v glab`)
+       If neither is available, tell the user: "GitLab source richiede GITLAB_TOKEN o glab CLI. Installa glab: https://gitlab.com/gitlab-org/cli oppure esporta GITLAB_TOKEN." — then stop execution and create no FD file.
 
-3. **Determine the source** — GitHub issue or free-text:
+3. **Determine the source** — GitHub issue, GitLab issue, or free-text:
 
    ### Path A: GitHub issue source
 
    Fetch the issue data using `gh api`:
+
    ```
    gh api repos/{owner}/{repo}/issues/{number}
    ```
+
    - Extract: `title`, `body`, `labels` (array of name strings), `assignee.login`, `milestone.title`
    - Fetch comments: `gh api repos/{owner}/{repo}/issues/{number}/comments`
 
-   ### Path B: Free-text description
+   ### Path B: GitLab issue source
+
+   URL-encode the project path: replace every `/` in `owner/repo` with `%2F` (e.g. `group/subgroup/repo` → `group%2Fsubgroup%2Frepo`). Use `{host}` extracted from the URL or from `--gitlab-host` (default `gitlab.com`).
+
+   **Primary path — `GITLAB_TOKEN` is set:**
+
+   Fetch the issue:
+
+   ```
+   curl -sf \
+     -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+     "https://{host}/api/v4/projects/{owner%2Frepo}/issues/{number}"
+   ```
+
+   Fetch the notes (comments):
+
+   ```
+   curl -sf \
+     -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+     "https://{host}/api/v4/projects/{owner%2Frepo}/issues/{number}/notes?per_page=20"
+   ```
+
+   **Fallback path — `glab` is available (no `GITLAB_TOKEN`):**
+
+   Note: `glab` manages its own authentication. If not yet authenticated, the user must run `glab auth login` first.
+
+   Fetch the issue:
+
+   ```
+   glab api projects/{owner%2Frepo}/issues/{number}
+   ```
+
+   Fetch the notes:
+
+   ```
+   glab api "projects/{owner%2Frepo}/issues/{number}/notes?per_page=20"
+   ```
+
+   **API error handling:** If either API call fails, tell the user the HTTP status code and the error — for example: `"Errore GitLab API: HTTP 401 — token non valido o scaduto."` / `"Errore GitLab API: HTTP 404 — issue non trovata o repository non accessibile."` — then stop execution and create no FD file. Never silently continue after an API error.
+
+   Extract from the issue response:
+
+   | GitLab field                     | Maps to                                         |
+   | -------------------------------- | ----------------------------------------------- |
+   | `title`                          | FD `title`                                      |
+   | `description`                    | Problem section body (rewrite, do not dump raw) |
+   | `labels[]` (array of strings)    | `tags` frontmatter array                        |
+   | `assignees[0].username`          | `assignee` frontmatter                          |
+   | `milestone.title`                | Constraint note                                 |
+   | notes `body` + `author.username` | Notes section (summarized)                      |
+
+   Never echo or log `$GITLAB_TOKEN` in any output visible to the user. Note: the token is passed via the `curl -H` flag and will be visible in the process list (`/proc/pid/cmdline`) for the duration of the request — this is standard practice for CLI tools and acceptable given the short-lived nature of the call.
+
+   ### Path C: Free-text description
 
    Use the user's description as the basis for the FD. Ask clarifying questions if the description is too vague.
 
@@ -65,7 +133,11 @@ Create a new Feature Design (FD) in the Forgia vault.
    - `reviewed`: false
    - `reviewer`: ""
    - `tags`: from issue labels if available, else `[]`
-   - `upstream_issue`: `"owner/repo#number"` if from issue, omit if from description
+   - `upstream_issue`: if from an issue source, use format `"owner/repo#number"`:
+     - GitHub: `"owner/repo#42"`
+     - GitLab on `gitlab.com`: `"owner/repo#42"` (same convention)
+     - GitLab on a self-hosted instance: prefix with the hostname — `"git.example.com/owner/repo#42"`
+     - Omit entirely if from free-text description
 
    ### Problem / Problema
    - If from issue: restructure the issue body into a clear problem statement. Extract the "what" and "why" — remove implementation details, code snippets, workarounds. Do NOT dump the raw issue body — rewrite it as a proper problem definition.
