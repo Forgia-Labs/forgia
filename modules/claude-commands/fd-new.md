@@ -59,6 +59,7 @@ Create a new Feature Design (FD) in the Forgia vault.
    - `priority`: if from issue — "high" if labels contain "bug", else "medium"; if from description — "medium"
    - `effort`: "medium" (default)
    - `impact`: "medium" (default)
+   - `author`: detect automatically — try `git config user.name`, fallback to `gh api user --jq '.login'`, fallback to empty
    - `assignee`: from issue assignee if available, or empty
    - `created`: today's date
    - `reviewed`: false
