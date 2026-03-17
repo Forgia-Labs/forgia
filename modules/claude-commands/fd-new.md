@@ -42,7 +42,7 @@ Create a new Feature Design (FD) in the Forgia vault.
    - Extract: `title`, `body`, `labels` (array of name strings), `assignee.login`, `milestone.title`
    - Fetch comments: `gh api repos/{owner}/{repo}/issues/{number}/comments`
 
-   ### Path A-bis: GitLab issue source
+   ### Path B: GitLab issue source
 
    URL-encode the project path: replace every `/` in `owner/repo` with `%2F` (e.g. `group/subgroup/repo` → `group%2Fsubgroup%2Frepo`). Use `{host}` extracted from the URL or from `--gitlab-host` (default `gitlab.com`).
 
@@ -66,6 +66,8 @@ Create a new Feature Design (FD) in the Forgia vault.
 
    **Fallback path — `glab` is available (no `GITLAB_TOKEN`):**
 
+   Note: `glab` manages its own authentication. If not yet authenticated, the user must run `glab auth login` first.
+
    Fetch the issue:
 
    ```
@@ -77,6 +79,8 @@ Create a new Feature Design (FD) in the Forgia vault.
    ```
    glab api "projects/{owner%2Frepo}/issues/{number}/notes?per_page=20"
    ```
+
+   **API error handling:** If either API call fails, tell the user the HTTP status code and the error — for example: `"Errore GitLab API: HTTP 401 — token non valido o scaduto."` / `"Errore GitLab API: HTTP 404 — issue non trovata o repository non accessibile."` — then stop execution and create no FD file. Never silently continue after an API error.
 
    Extract from the issue response:
 
@@ -91,7 +95,7 @@ Create a new Feature Design (FD) in the Forgia vault.
 
    Never echo or log `$GITLAB_TOKEN` in any output visible to the user.
 
-   ### Path B: Free-text description
+   ### Path C: Free-text description
 
    Use the user's description as the basis for the FD. Ask clarifying questions if the description is too vague.
 
