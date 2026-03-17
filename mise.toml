@@ -1,8 +1,33 @@
 # --- Test ---
 
 [tasks.test]
-description = "Run E2E tests"
-run = "{{config_root}}/tests/e2e.sh"
+description = "Run all E2E tests"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="{{config_root}}"
+failed=0
+
+for test_file in "$root"/tests/e2e*.sh; do
+  [[ -f "$test_file" ]] || continue
+  echo ""
+  echo "========================================="
+  echo "Running: $(basename "$test_file")"
+  echo "========================================="
+  if ! bash "$test_file"; then
+    failed=$((failed + 1))
+  fi
+done
+
+echo ""
+if (( failed > 0 )); then
+  echo "FAILED: $failed test suite(s) failed"
+  exit 1
+else
+  echo "ALL TEST SUITES PASSED"
+fi
+"""
 
 # --- Core tasks ---
 
