@@ -95,6 +95,72 @@ internal/
     timeout.go               ← timeout enforcement
 ```
 
+## Go 1.25+ Features to Use
+
+Forgia targets Go 1.25+. Use these modern features throughout:
+
+| Feature | Where | Pattern |
+|---------|-------|---------|
+| **slog** (structured logging) | Everywhere | `slog.With()` for context reuse, `LogValuer` for types |
+| **errgroup** | Batch, watch, MCP | `g, ctx := errgroup.WithContext(ctx)` |
+| **Range over func** (iterators) | Vault API | `for fd := range vault.FDs()` |
+| **testing/synctest** | Watch, timeout tests | Fake clock, no real `time.Sleep` |
+| **errors.ErrorGroup** | Runner, subprocess | Aggregate errors from parallel ops |
+| **context propagation** | All functions | Never use `context.Background()` except in `main()` |
+
+### Iterators (range over func)
+
+Vault exposes iterators for FDs and SDDs — Go 1.23+ `iter.Seq`:
+
+```go
+// internal/vault/vault.go
+import "iter"
+
+// FDs returns an iterator over all Feature Designs
+func (v *Vault) FDs() iter.Seq[*FD] {
+    return func(yield func(*FD) bool) {
+        entries, _ := os.ReadDir(filepath.Join(v.dir, "fd"))
+        for _, e := range entries {
+            if !strings.HasPrefix(e.Name(), "FD-") { continue }
+            fd, err := v.parseFD(e.Name())
+            if err != nil { continue }
+            if !yield(fd) { return }
+        }
+    }
+}
+
+// Usage — clean, no allocation of full slice:
+for fd := range vault.FDs() {
+    if fd.Status == FDApproved {
+        logger.Info("found approved FD", "fd", fd)
+    }
+}
+
+// Filter with standard library:
+for fd := range vault.FDs() {
+    if fd.Author == "ferruvich" {
+        // ...
+    }
+}
+```
+
+### Context propagation rule
+
+**Never use `context.Background()` except in `main()` and top-level test functions.** Every other function receives `ctx` from its caller:
+
+```go
+// WRONG:
+func (r *Runner) Execute(sdd *vault.SDD) error {
+    ctx := context.Background()  // ← loses parent's cancellation!
+    return r.spawn(ctx, sdd)
+}
+
+// CORRECT:
+func (r *Runner) Execute(ctx context.Context, sdd *vault.SDD) error {
+    return r.spawn(ctx, sdd)  // ← parent can cancel this
+}
+```
+
 ## 3. Process Lifecycle
 
 ### CLI Mode (run and exit)
@@ -571,23 +637,43 @@ func (v *Vault) GetFD(id string) (*FD, error) {
 }
 ```
 
-### Structured logging
+### Structured logging (slog best practices)
 
 ```go
-// Use slog throughout
 import "log/slog"
 
-slog.Info("executing SDD",
-    "sdd", sdd.ID,
-    "runner", runner.Name(),
+// Create logger with context — reuse across the operation (avoid repeating attributes)
+logger := slog.With("sdd", sdd.ID, "runner", runner.Name())
+logger.Info("executing",
     "sandbox", cfg.Runner.Claude.Sandbox,
 )
 
-slog.Error("subprocess failed",
-    "process", "claude",
+logger.Error("subprocess failed",
     "exit_code", exitCode,
     "error", err,
 )
+```
+
+### LogValuer for sensitive types
+
+Use `slog.LogValuer` to control how types appear in logs — prevents accidental secret leakage:
+
+```go
+// internal/vault/fd.go
+
+// LogValue ensures only metadata is logged, never content
+func (fd FD) LogValue() slog.Value {
+    return slog.GroupValue(
+        slog.String("id", fd.ID),
+        slog.String("status", string(fd.Status)),
+        slog.String("author", fd.Author),
+        // Intentionally omit: title content, problem description, etc.
+    )
+}
+
+// Usage — slog automatically calls LogValue():
+slog.Info("processing FD", "fd", fd)
+// output: processing FD fd.id=FD-a3f2 fd.status=approved fd.author=ferruvich
 ```
 
 Log levels:
@@ -597,6 +683,41 @@ Log levels:
 - `ERROR`: failures that stop execution
 
 ## 9. Concurrency Patterns
+
+### Use errgroup (not naked goroutines)
+
+Go 1.25 standard: use `golang.org/x/sync/errgroup` for concurrent tasks with error propagation and context cancellation. **Never use naked `go func()` for work that can fail.**
+
+```go
+import "golang.org/x/sync/errgroup"
+
+// Batch execution — N SDDs with error collection
+func batchExecute(ctx context.Context, sdds []*vault.SDD, runner runner.Runner, parallel bool) error {
+    if !parallel {
+        // Sequential
+        for _, sdd := range sdds {
+            if _, err := runner.Execute(ctx, sdd, opts); err != nil {
+                return fmt.Errorf("exec %s: %w", sdd.ID, err)
+            }
+        }
+        return nil
+    }
+
+    // Parallel with errgroup
+    g, ctx := errgroup.WithContext(ctx)
+    g.SetLimit(3)  // max 3 concurrent executions
+
+    for _, sdd := range sdds {
+        sdd := sdd  // capture loop var
+        g.Go(func() error {
+            _, err := runner.Execute(ctx, sdd, opts)
+            return err
+        })
+    }
+
+    return g.Wait()  // returns first error, cancels remaining via ctx
+}
+```
 
 ### MCP Server (concurrent tool calls)
 
@@ -621,13 +742,13 @@ func (s *Server) handleToolCall(ctx context.Context, call ToolCall) (any, error)
 }
 ```
 
-### Watch Mode (event queue)
+### Watch Mode (event queue with errgroup)
 
 ```mermaid
 flowchart LR
     FS["fsnotify\nevents"] --> Debounce["Debounce\n(5s)"]
     Debounce --> Queue["Channel\n(buffered)"]
-    Queue --> Worker["Worker goroutine\n(sequential exec)"]
+    Queue --> Worker["errgroup worker\n(sequential or parallel)"]
     Worker --> Runner["runner.Execute()"]
 
     style Queue fill:#fff3cd,stroke:#ffc107
@@ -636,13 +757,23 @@ flowchart LR
 ```go
 // cmd/forgia/cmd/watch.go
 
-func watchLoop(ctx context.Context, vault *vault.Vault, runner runner.Runner) {
-    events := make(chan string, 10)  // buffered channel
+func watchLoop(ctx context.Context, v *vault.Vault, r runner.Runner) error {
+    g, ctx := errgroup.WithContext(ctx)
 
-    // Producer: file watcher
-    go func() {
-        watcher, _ := fsnotify.NewWatcher()
-        watcher.Add(sddDir)
+    events := make(chan string, 10)
+
+    // Producer: file watcher (runs in errgroup)
+    g.Go(func() error {
+        watcher, err := fsnotify.NewWatcher()
+        if err != nil {
+            return fmt.Errorf("create watcher: %w", err)
+        }
+        defer watcher.Close()
+
+        if err := watcher.Add(sddDir); err != nil {
+            return fmt.Errorf("watch %s: %w", sddDir, err)
+        }
+
         for {
             select {
             case event := <-watcher.Events:
@@ -650,22 +781,33 @@ func watchLoop(ctx context.Context, vault *vault.Vault, runner runner.Runner) {
                     time.Sleep(debounce)
                     events <- event.Name
                 }
+            case err := <-watcher.Errors:
+                return fmt.Errorf("watcher error: %w", err)
             case <-ctx.Done():
-                return
+                return ctx.Err()
             }
         }
-    }()
+    })
 
-    // Consumer: sequential executor
-    for {
-        select {
-        case sddPath := <-events:
-            result, err := runner.Execute(ctx, sdd, opts)
-            printResult(result, err)
-        case <-ctx.Done():
-            return
+    // Consumer: sequential executor (runs in errgroup)
+    g.Go(func() error {
+        for {
+            select {
+            case sddPath := <-events:
+                sdd, _ := v.GetSDD(sddPath)
+                result, err := r.Execute(ctx, sdd, opts)
+                if err != nil {
+                    slog.Error("exec failed", "sdd", sdd, "error", err)
+                    // Don't return error — continue watching
+                }
+                printResult(result)
+            case <-ctx.Done():
+                return ctx.Err()
+            }
         }
-    }
+    })
+
+    return g.Wait()
 }
 ```
 
@@ -719,6 +861,46 @@ func TestInitCommand(t *testing.T) {
     assert.NoError(t, err)
     assert.Contains(t, string(output), "Vault scaffolded")
     assert.DirExists(t, filepath.Join(dir, ".forgia"))
+}
+```
+
+### Testing concurrent code (testing/synctest)
+
+Go 1.25 provides `testing/synctest` for testing code with timers, debounce, and timeouts **without real `time.Sleep`**:
+
+```go
+import "testing/synctest"
+
+// Test watch debounce without waiting 5 real seconds
+func TestWatchDebounce(t *testing.T) {
+    synctest.Run(func() {
+        events := make(chan string, 1)
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        // Simulate file event
+        events <- "SDD-001.yaml"
+
+        // Advance fake clock past debounce
+        time.Sleep(6 * time.Second)  // instant in synctest!
+
+        // Verify the event was processed
+        // ...
+    })
+}
+
+// Test subprocess timeout without waiting
+func TestRunnerTimeout(t *testing.T) {
+    synctest.Run(func() {
+        ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+        defer cancel()
+
+        // Simulate long-running subprocess
+        time.Sleep(31 * time.Second)  // instant!
+
+        // ctx should be expired
+        assert.Error(t, ctx.Err())
+    })
 }
 ```
 
