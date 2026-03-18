@@ -1,0 +1,554 @@
+# Functional Architecture
+
+> What Forgia does, how the components interact, and how data flows through the system.
+> Companion to [go-integration-guide.md](go-integration-guide.md) which covers _how_ the code is structured.
+
+## 1. System Overview
+
+```mermaid
+flowchart TD
+    subgraph human ["Human Layer"]
+        Dev["Developer"]
+        Team["Team (PR review, board)"]
+    end
+
+    subgraph forgia ["Forgia (single Go binary)"]
+        CLI["CLI Commands\ninit, status, doctor,\nvalidate, exec, watch, batch"]
+        MCP["MCP Server\n(tool provider for agents)"]
+        Skills["Skills Engine\n(/fd-new, /fd-review, /fd-sdd,\n/arch-init, /arch-review)"]
+    end
+
+    subgraph agents ["Agent Layer"]
+        Claude["Claude Code\n(host — architect)"]
+        Sandbox["Claude Code\n(sandbox — builder)"]
+    end
+
+    subgraph external ["External Services"]
+        Board["Project Board\n(GitHub/GitLab)"]
+        CodeMem["codebase-memory-mcp\n(Tier 3 knowledge)"]
+        Docker["Docker Engine\n(sandbox containers)"]
+        Beads["Beads\n(local cache)"]
+        RTK["RTK\n(token compression)"]
+    end
+
+    subgraph storage ["Storage"]
+        Vault[".forgia/\n(source of truth)"]
+        Git["Git\n(versioning)"]
+    end
+
+    Dev -->|"interactive"| CLI
+    Dev -->|"interactive"| Claude
+    Claude -->|"MCP"| MCP
+    Claude -->|"slash commands"| Skills
+    CLI -->|"spawns"| Sandbox
+    MCP -->|"ToolProvider"| CodeMem
+    MCP -->|"ProjectBoard"| Board
+    MCP -->|"BeadsClient"| Beads
+    Sandbox -->|"runs in"| Docker
+    Docker -->|"includes"| RTK
+    Team -->|"review"| Board
+    Board <-->|"sync"| Vault
+    CLI --> Vault
+    MCP --> Vault
+    Skills --> Vault
+    Vault --> Git
+
+    style forgia fill:#fff3cd,stroke:#ffc107
+    style storage fill:#d4edda,stroke:#28a745
+    style external fill:#cce5ff,stroke:#0d6efd
+```
+
+## 2. Artifact Lifecycle
+
+Every artifact in Forgia follows a lifecycle from creation to archival:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Architecture: /arch-init
+
+    state "Architecture Phase" as Architecture {
+        [*] --> SystemContext: system-context.yaml
+        [*] --> Containers: containers.yaml
+        [*] --> Contexts: contexts/*.yaml
+        SystemContext --> Reviewed: /arch-review
+        Containers --> Reviewed
+        Contexts --> Reviewed
+    }
+
+    Architecture --> FD: /fd-new (from context)
+
+    state "Feature Design Phase" as FD {
+        [*] --> Planned
+        Planned --> InReview: /fd-review
+        InReview --> Approved: all checks pass
+        InReview --> Planned: revision needed
+        Approved --> Rejected: /fd-close --reject
+    }
+
+    FD --> SDD: /fd-sdd
+
+    state "SDD Phase" as SDD {
+        [*] --> SDDPlanned
+        SDDPlanned --> Validated: forgia validate
+        Validated --> Executing: forgia exec
+        Executing --> Done: agent completes
+        Executing --> Failed: agent fails
+        Failed --> SDDPlanned: rework
+    }
+
+    SDD --> Verify: /fd-verify
+    Verify --> Closed: /fd-close
+    Closed --> ArchUpdate: /arch-update
+    ArchUpdate --> Architecture: feedback loop
+
+    Rejected --> [*]: archived as ADR
+    Closed --> [*]: archived with retrospective
+```
+
+## 3. Data Model
+
+### Artifact hierarchy
+
+```
+.forgia/ (vault — source of truth)
+│
+├── architecture/                    ← C4 Level 1-2 (YAML + derived MD)
+│   ├── system-context.yaml
+│   ├── containers.yaml
+│   ├── technology-decisions.yaml
+│   ├── quality-attributes.yaml
+│   ├── constraints.yaml
+│   └── glossary.yaml
+│
+├── contexts/                        ← DDD Bounded Contexts (YAML + derived MD)
+│   ├── <context-name>.yaml          ← interfaces, dependencies, language
+│   └── ...
+│
+├── fd/                              ← Feature Designs (YAML source, MD derived)
+│   ├── FD-<hash>-<slug>.yaml       ← agent reads/writes this
+│   ├── FD-<hash>-<slug>.md         ← auto-generated for human review
+│   └── _templates/
+│
+├── sdd/                             ← Execution Specs
+│   ├── FD-<hash>/
+│   │   ├── SDD-001-<slug>.yaml     ← agent reads/writes this
+│   │   ├── SDD-001-<slug>.md       ← auto-generated for human review
+│   │   └── ...
+│   └── _templates/
+│
+├── constitution.md                  ← immutable rules
+├── config.toml                      ← team config (committed)
+├── config.local.toml                ← personal overrides (gitignored)
+│
+├── guardrails/
+│   ├── deny.toml                    ← read/execute/write deny patterns
+│   └── ignore                       ← context exclusion patterns
+│
+├── dev-guide/
+│   ├── principles/                  ← clean-code, SOLID, design-patterns
+│   ├── lang/                        ← per-language conventions (auto-detected)
+│   └── *.md                         ← coding, commit, review conventions
+│
+├── logs/                            ← gitignored
+│   ├── exec-<sdd>-<timestamp>.json  ← execution reports
+│   └── exec-<sdd>-<timestamp>.log   ← execution logs
+│
+└── .gitignore                       ← excludes logs/, run/, .beads/
+```
+
+### ID System
+
+Hash-based, collision-proof:
+
+```
+FD-a3f2   ← 4-char hex from sha256(title + timestamp + author)
+SDD-001   ← sequential within FD folder (no cross-FD collision)
+```
+
+Same hash everywhere:
+
+```
+GitHub Project card ID = Beads task ID = FD file ID = SDD folder name
+```
+
+### Format duality
+
+```
+*.yaml    ← source of truth (agent reads/writes, CLI parses, DB syncs)
+*.md      ← derived view (human review, PR diff, Obsidian)
+```
+
+The MD is never edited directly. Changes go through YAML, MD is regenerated by `forgia render`.
+
+## 4. Memory Tiers
+
+```mermaid
+flowchart TD
+    subgraph tier1 ["Tier 1: Hot Memory (always loaded, ~800 lines)"]
+        Arch["architecture/*.yaml\nsystem-context, containers,\ntechnology-decisions"]
+        Const["constitution.md"]
+        Guard["guardrails/deny.toml"]
+        Principles["principles/\nclean-code, SOLID, patterns"]
+    end
+
+    subgraph tier2 ["Tier 2: Domain (loaded per bounded context, ~2000 lines)"]
+        Context["contexts/<domain>.yaml\ninterfaces, deps, language"]
+        Lang["lang/<detected>.md\nGo, Rust, TS, K8s, Shell"]
+        FDCurrent["Current FD"]
+        SDDCurrent["Current SDD"]
+    end
+
+    subgraph tier3 ["Tier 3: Cold (on-demand via MCP, unlimited)"]
+        CodeGraph["codebase-memory-mcp\nsearch_graph, trace_call_path,\ndetect_changes, get_architecture"]
+        ADR["Closed FDs\n(retrospectives, decisions)"]
+        Code["Source code\n(only referenced files)"]
+    end
+
+    tier1 -->|"every session"| Agent["Agent"]
+    tier2 -->|"per domain"| Agent
+    tier3 -->|"on-demand query"| Agent
+
+    style tier1 fill:#f8d7da,stroke:#dc3545
+    style tier2 fill:#fff3cd,stroke:#ffc107
+    style tier3 fill:#cce5ff,stroke:#0d6efd
+```
+
+| Tier | What | Loaded when | Size |
+|------|------|-------------|------|
+| 1 (Hot) | Constitution, guardrails, architecture overview, principles | Every session | ~800 lines |
+| 2 (Domain) | Bounded context, language conventions, current FD/SDD | Per domain | ~2000 lines |
+| 3 (Cold) | Code graph, closed FDs, source code | On-demand MCP query | Unlimited |
+
+## 5. Security Layers
+
+```mermaid
+flowchart TD
+    subgraph L1 ["L1: Prompt (deny.toml in agent context)"]
+        DenyPrompt["Agent told:\nNEVER read .env, .ssh, .gnupg\nNEVER execute pass show, env grep\nNEVER write constitution, config"]
+    end
+
+    subgraph L2 ["L2: Permissions (settings.json / permission-mode)"]
+        Host["Host mode:\nsettings.json (286 allow, 45 deny)\npermission-mode: default"]
+        SandboxPerm["Sandbox mode:\n--dangerously-skip-permissions\n(safe because L3 isolates)"]
+    end
+
+    subgraph L3 ["L3: OS Isolation (Docker Engine API)"]
+        Mount["Only project dir mounted\nNo ~/.ssh, ~/.gnupg, ~/.aws"]
+        Net["Network allowlist\napi.anthropic.com, github.com"]
+        Resources["CPU/memory limits"]
+    end
+
+    subgraph L4 ["L4: Post-Exec Scan"]
+        FileCheck["Scan created files\nvs deny.toml write patterns"]
+        SecretCheck["Scan file contents\nfor API key patterns"]
+        Rollback["Auto-rollback\non violation"]
+    end
+
+    subgraph L5 ["L5: Token Compression (RTK)"]
+        Compress["Command output compressed\n60-90% token reduction"]
+    end
+
+    L1 --> L2 --> L3 --> L4 --> L5
+
+    style L1 fill:#fff3cd,stroke:#ffc107
+    style L3 fill:#f8d7da,stroke:#dc3545
+    style L4 fill:#f8d7da,stroke:#dc3545
+```
+
+| Layer | Host (architect) | Sandbox (builder) |
+|-------|-----------------|-------------------|
+| L1 Prompt | deny.toml injected | deny.toml injected |
+| L2 Permissions | settings.json + default mode | --dangerously-skip-permissions |
+| L3 OS | None (dev is in the loop) | Docker: mount + network + resources |
+| L4 Post-Exec | Optional | Mandatory |
+| L5 RTK | Not needed | Active (token savings) |
+
+## 6. Dual-Profile Runner
+
+```mermaid
+flowchart TD
+    Command{"forgia exec\nor forgia watch?"}
+
+    Command -->|"interactive\n(dev at keyboard)"| Host["Host Profile\n(architect)"]
+    Command -->|"autonomous\n(watch, batch)"| Sandbox["Sandbox Profile\n(builder)"]
+
+    Host --> Claude_Host["claude\n--permission-mode auto\non the Mac directly"]
+
+    Sandbox --> Docker_API["Docker Engine API\n(Unix socket)"]
+    Docker_API --> Container["Sandbox Container"]
+    Container --> RTK_Hook["RTK auto-rewrite hook"]
+    Container --> Claude_Sandbox["claude\n--dangerously-skip-permissions"]
+
+    Claude_Host --> PostExec["Post-Exec\nUpdate status\nWrite report"]
+    Claude_Sandbox --> PostExec
+
+    style Host fill:#fff3cd,stroke:#ffc107
+    style Sandbox fill:#d4edda,stroke:#28a745
+    style Container fill:#cce5ff,stroke:#0d6efd
+```
+
+## 7. External Service Integration
+
+```mermaid
+flowchart LR
+    subgraph forgia ["Forgia Go Binary"]
+        Core["Core\n(vault, config, guardrails)"]
+        TP["ToolProvider\nRegistry"]
+        PB["ProjectBoard\nInterface"]
+        RM["Runner\nManager"]
+        BC["Beads\nClient"]
+    end
+
+    subgraph services ["External Services (all optional)"]
+        CM["codebase-memory-mcp\nToolProvider impl"]
+        GH["GitHub Projects\nProjectBoard impl"]
+        GL["GitLab Board\nProjectBoard impl"]
+        LB["LocalBoard\nProjectBoard fallback"]
+        DockerE["Docker Engine\nRunner impl"]
+        BD["Beads (bd CLI)\nlocal cache"]
+    end
+
+    TP --> CM
+    PB --> GH
+    PB --> GL
+    PB --> LB
+    RM --> DockerE
+    BC --> BD
+
+    style forgia fill:#fff3cd,stroke:#ffc107
+    style services fill:#cce5ff,stroke:#0d6efd
+```
+
+**Design principle: everything optional with graceful fallback.**
+
+| Service | Interface | Required? | Fallback |
+|---------|-----------|-----------|----------|
+| codebase-memory-mcp | `ToolProvider` | No | No Tier 3, skills work with less context |
+| GitHub Projects | `ProjectBoard` | No | `LocalBoard` (filesystem only) |
+| GitLab Board | `ProjectBoard` | No | `LocalBoard` |
+| Docker Engine | `DockerSandbox` | No | Host mode (permission-mode auto) |
+| RTK | In-container hook | No | No token compression |
+| Beads (bd) | `BeadsClient` | No | Vault files only (no dep graph) |
+| Claude Code | `Runner` | Yes | Primary runner (only required service) |
+
+## 8. The Autonomous Cycle
+
+```mermaid
+flowchart TD
+    Arch["Architecture\n+ DDD Contexts"] --> Propose
+
+    subgraph cycle ["Autonomous Cycle"]
+        Propose["Agent proposes FD\n(based on completed FDs\n+ architecture gaps\n+ context files)"]
+
+        Propose --> SelfReview["Self-Review\n(coherence with\nprevious FDs)"]
+
+        SelfReview --> Gate{"Intelligent Gate\nCoherent?"}
+
+        Gate -->|"Conflict found"| Stop["STOP\nNotify human\nExplain conflict"]
+
+        Gate -->|"Coherent"| Generate["/fd-sdd → SDDs\nforgia watch → execute\n/fd-verify → check"]
+
+        Generate --> Feedback["Feedback Loop\nUpdate architecture\nUpdate contexts\nClose FD"]
+
+        Feedback --> Propose
+        Stop -->|"Human resolves"| Propose
+    end
+
+    style Gate fill:#f8d7da,stroke:#dc3545
+    style Stop fill:#f8d7da,stroke:#dc3545
+    style Propose fill:#d4edda,stroke:#28a745
+    style Feedback fill:#cce5ff,stroke:#0d6efd
+```
+
+### Gate checks (uses all 3 memory tiers)
+
+| Check | Tier | Source |
+|-------|------|--------|
+| Contradicts previous FD decisions? | 3 (Cold) | Closed FDs retrospectives |
+| Breaks bounded context contracts? | 2 (Domain) | contexts/*.yaml interfaces |
+| Quality attributes still achievable? | 1 (Hot) | architecture/quality-attributes.yaml |
+| Uses rejected patterns? | 3 (Cold) | Work Log failure modes |
+| Dependencies satisfied? | 2 (Domain) | contexts/*.yaml dependencies |
+| Blast radius acceptable? | 3 (Cold) | codebase-memory-mcp detect_changes |
+
+### Human gates
+
+The human intervenes at **3 moments only**:
+
+1. **Approve FD** — agent proposed and self-reviewed, human confirms
+2. **Resolve conflict** — gate blocked, human decides how to proceed
+3. **Review PR** — code is ready, human merges
+
+Everything else is autonomous.
+
+## 9. Project Board Sync
+
+```mermaid
+sequenceDiagram
+    participant Vault as .forgia/ (YAML)
+    participant Forgia as Forgia MCP
+    participant Board as ProjectBoard
+    participant Beads as Beads (cache)
+
+    Note over Vault: FD created locally
+
+    Vault->>Forgia: FD-a3f2 created
+    Forgia->>Board: CreateCard(FD-a3f2)
+    Board-->>Forgia: card confirmed
+    Forgia->>Beads: cache card + ID
+
+    Note over Vault: FD status changes
+
+    Vault->>Forgia: FD-a3f2 → approved
+    Forgia->>Board: MoveCard(FD-a3f2, "Approved")
+    Forgia->>Beads: update cache
+
+    Note over Board: Another engineer moves card
+
+    Board->>Forgia: card FD-b7c1 → "In Progress"
+    Forgia->>Vault: update FD-b7c1.yaml status
+    Forgia->>Beads: update cache
+```
+
+### Competitive FDs on the board
+
+```
+| FD Proposed          | FD Approved    | SDD In Progress    | Done     |
+|---------------------|----------------|-------------------|----------|
+| FD-a3f2 (approach A) | FD-c4d5        | SDD-001 of FD-c4d5 | FD-x1y2  |
+| FD-b7c1 (approach B) |                | SDD-002 of FD-c4d5 |          |
+|   └ competes with a  |                |                    |          |
+```
+
+When FD-a3f2 is approved, FD-b7c1 automatically moves to "Rejected" column with reason.
+
+## 10. Skill Integration
+
+Skills are Claude Code slash commands that interact with the vault through the Go binary:
+
+```mermaid
+flowchart LR
+    subgraph skills ["Slash Commands"]
+        FDNew["/fd-new"]
+        FDReview["/fd-review"]
+        FDSDD["/fd-sdd"]
+        FDVerify["/fd-verify"]
+        FDClose["/fd-close"]
+        ArchInit["/arch-init"]
+        ArchReview["/arch-review"]
+        ArchUpdate["/arch-update"]
+        Threat["/fd-threat-model"]
+        DryRun["/sdd-dry-run"]
+    end
+
+    subgraph modes ["How they work"]
+        Direct["Direct: Claude reads .forgia/\nand executes instructions\n(current — slash command .md files)"]
+        MCP_Mode["MCP: Claude calls forgia tools\n(future — Go binary handles logic)"]
+    end
+
+    skills --> Direct
+    skills -.->|"post Go rewrite"| MCP_Mode
+
+    style skills fill:#fff3cd,stroke:#ffc107
+    style MCP_Mode fill:#d4edda,stroke:#28a745
+```
+
+**Current (bash era)**: Skills are `.md` files with instructions. Claude reads them and executes using its own tools (Read, Write, Bash).
+
+**Future (Go era)**: Skills call MCP tools (`forgia_fd_new`, `forgia_arch_review`). Logic is in Go, Claude just orchestrates.
+
+### Skill → Feature mapping
+
+| Skill | Feature Issues | MCP Tool (future) |
+|-------|---------------|-------------------|
+| `/fd-new` | #30 (multi-eng), #29 (competitive) | `forgia_fd_new` |
+| `/fd-review` | #18 (compliance scoring) | `forgia_fd_review` |
+| `/fd-sdd` | #35 (board sync) | `forgia_fd_sdd` |
+| `/fd-verify` | #17 (post-exec scan) | `forgia_fd_verify` |
+| `/fd-close` | #29 (reject) | `forgia_fd_close` |
+| `/arch-init` | #27 (DDD), #36 (codebase-memory) | `forgia_arch_init` |
+| `/arch-review` | #22, #36 | `forgia_arch_review` |
+| `/arch-update` | #27 | `forgia_arch_update` |
+| `/fd-threat-model` | #21 | `forgia_threat_model` |
+| `/sdd-dry-run` | #23, #36 | `forgia_dry_run` |
+
+## 11. Configuration Hierarchy
+
+```mermaid
+flowchart TD
+    subgraph committed ["Committed to git (shared)"]
+        Constitution["constitution.md\n(immutable principles)"]
+        Config["config.toml\n(team settings)"]
+        Guardrails["guardrails/deny.toml\n(security rules)"]
+        DevGuide["dev-guide/\n(conventions)"]
+        Arch["architecture/\n(system design)"]
+        Contexts["contexts/\n(bounded contexts)"]
+    end
+
+    subgraph personal ["Personal (gitignored)"]
+        LocalConfig["config.local.toml\n(runner prefs, max_turns)"]
+        Logs["logs/\n(exec reports)"]
+        BeadsDB[".beads/\n(local cache)"]
+    end
+
+    subgraph protected ["Protected (CODEOWNERS)"]
+        Constitution
+        Guardrails
+        Config
+        Arch
+    end
+
+    subgraph open ["Open to all"]
+        FDs["fd/\n(anyone can propose)"]
+        SDDs["sdd/\n(generated)"]
+    end
+
+    style committed fill:#d4edda,stroke:#28a745
+    style personal fill:#f0f0f0,stroke:#999
+    style protected fill:#f8d7da,stroke:#dc3545
+```
+
+### Loading priority
+
+```
+CLI flags > Environment vars > config.local.toml > config.toml > Go defaults
+```
+
+## 12. Feature Dependency Graph
+
+```mermaid
+flowchart TD
+    Scaffold["#28 Go Scaffold ✅"]
+
+    Scaffold --> Interfaces["#41 Go Interfaces"]
+
+    Interfaces --> Board["#35 Project Board\n+ Hash ID\n+ Beads Cache"]
+    Interfaces --> CodeMem["#36 codebase-memory-mcp\n(Tier 3)"]
+
+    Board --> Competitive["#29 Competitive FD\n+ Reject"]
+    Board --> MultiEng["#30 pt2 Multi-Eng CI"]
+
+    CodeMem --> DDD["#27 DDD Skills\n(arch-init, review, update)"]
+
+    DDD --> Threat["#21 /fd-threat-model"]
+    DDD --> ArchReview["#22 /fd-arch-review"]
+    CodeMem --> DryRun["#23 /sdd-dry-run"]
+
+    DDD --> DesignParent["#20 Design Skills (parent)"]
+    Threat --> DesignParent
+    ArchReview --> DesignParent
+    DryRun --> DesignParent
+
+    style Scaffold fill:#d4edda,stroke:#28a745
+    style Board fill:#fff3cd,stroke:#ffc107
+    style CodeMem fill:#cce5ff,stroke:#0d6efd
+```
+
+## References
+
+- [go-integration-guide.md](go-integration-guide.md) — Go code patterns, process management
+- [Forgia README](../README.md) — user-facing documentation
+- [Doc 09 — Architecture-Driven Development](../../docs/spec-driven-development/09-architecture-driven-development.md) — conceptual model (in ai-bots knowledge base)
+- [C4 Model](https://c4model.com/)
+- [DDD Bounded Context](https://martinfowler.com/bliki/BoundedContext.html)
+- [Codified Context paper](https://arxiv.org/html/2602.20478v1) — 3-tier memory
