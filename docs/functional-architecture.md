@@ -460,13 +460,11 @@ sequenceDiagram
 
 ### Competitive FDs on the board
 
-```
 | FD Proposed          | FD Approved    | SDD In Progress    | Done     |
 |---------------------|----------------|-------------------|----------|
 | FD-a3f2 (approach A) | FD-c4d5        | SDD-001 of FD-c4d5 | FD-x1y2  |
 | FD-b7c1 (approach B) |                | SDD-002 of FD-c4d5 |          |
 |   └ competes with a  |                |                    |          |
-```
 
 When FD-a3f2 is approved, FD-b7c1 automatically moves to "Rejected" column with reason.
 
