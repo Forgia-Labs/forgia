@@ -12,3 +12,6 @@ modules/openhands/config.toml
 
 # Obsidian (when used as vault)
 .obsidian/
+
+# Go build output
+build/
