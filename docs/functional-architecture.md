@@ -60,7 +60,9 @@ flowchart TD
 
 ## 2. Artifact Lifecycle
 
-Every artifact in Forgia follows a lifecycle from creation to archival:
+Every artifact in Forgia follows a lifecycle from creation to archival.
+
+> **Note**: The Architecture Phase (`/arch-init`, `/arch-review`, `/arch-update`) is defined in #27 and not yet implemented. The FD and SDD phases are implemented and tested.
 
 ```mermaid
 stateDiagram-v2
@@ -173,6 +175,18 @@ Same hash everywhere:
 ```
 GitHub Project card ID = Beads task ID = FD file ID = SDD folder name
 ```
+
+### ID System — migration note
+
+> **Current state**: sequential IDs (FD-001, FD-002) in Markdown with YAML frontmatter.
+> **Target state**: hash-based IDs (FD-a3f2) in YAML source with derived MD.
+> Migration will happen as part of #35 (GitHub Projects sync). Existing sequential FDs will coexist — no forced migration.
+
+### Format duality — migration note
+
+> **Current state**: Markdown files with YAML frontmatter (`fd/FD-001.md`).
+> **Target state**: YAML source of truth with derived MD (`fd/FD-a3f2.yaml` + `fd/FD-a3f2.md`).
+> This is a breaking change that happens with the Go rewrite. Migration plan TBD in #35.
 
 ### Format duality
 
@@ -370,7 +384,7 @@ flowchart LR
 | Beads (bd) | `BeadsClient` | No | Vault files only (no dep graph) |
 | Claude Code | `Runner` | Yes | Primary runner (only required service) |
 
-## 8. The Autonomous Cycle
+## 8. The Autonomous Cycle (Future Vision)
 
 ```mermaid
 flowchart TD

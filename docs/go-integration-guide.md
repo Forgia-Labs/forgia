@@ -161,6 +161,8 @@ func (r *Runner) Execute(ctx context.Context, sdd *vault.SDD) error {
 }
 ```
 
+> **Service Mode**: deferred to future. Currently `forgia mcp` is spawned by Claude Code on demand via MCP config (not a persistent daemon). If persistent service mode is needed (e.g., background board sync, continuous watch), launchd (macOS) / systemd (Linux) templates will be added. See #42 §6.
+
 ## 3. Process Lifecycle
 
 ### CLI Mode (run and exit)
@@ -301,7 +303,8 @@ type Process struct {
     Cmd     *exec.Cmd
     Stdout  io.ReadCloser
     Stderr  io.ReadCloser
-    Done    chan error
+    done    chan struct{}    // closed when process exits (safe for multiple readers)
+    err     error           // exit error, valid after done is closed
     cancel  context.CancelFunc
 }
 
@@ -323,24 +326,26 @@ func Spawn(ctx context.Context, name string, args ...string) (*Process, error) {
         Cmd:    cmd,
         Stdout: stdout,
         Stderr: stderr,
-        Done:   make(chan error, 1),
+        done:   make(chan struct{}),
         cancel: cancel,
     }
 
-    // Monitor in background
+    // Monitor in background — close channel on exit (safe for multiple readers)
     go func() {
-        p.Done <- cmd.Wait()
+        p.err = cmd.Wait()
+        close(p.done)
     }()
 
     return p, nil
 }
 
-// Kill sends SIGTERM, waits 5s, then SIGKILL
+// Kill sends SIGTERM, waits 5s, then SIGKILL.
+// Safe to call from multiple goroutines (done channel uses close pattern).
 func (p *Process) Kill() error {
     p.Cmd.Process.Signal(syscall.SIGTERM)
     select {
-    case <-p.Done:
-        return nil
+    case <-p.done:
+        return p.err
     case <-time.After(5 * time.Second):
         return p.Cmd.Process.Kill()
     }
@@ -538,6 +543,9 @@ func (sm *ShutdownManager) ListenAndShutdown() {
 
     <-sigCh
 
+    sm.mu.Lock()
+    defer sm.mu.Unlock()
+
     // Kill all registered processes
     for _, p := range sm.processes {
         p.Kill()
@@ -708,7 +716,6 @@ func batchExecute(ctx context.Context, sdds []*vault.SDD, runner runner.Runner, 
     g.SetLimit(3)  // max 3 concurrent executions
 
     for _, sdd := range sdds {
-        sdd := sdd  // capture loop var
         g.Go(func() error {
             _, err := runner.Execute(ctx, sdd, opts)
             return err
@@ -774,12 +781,16 @@ func watchLoop(ctx context.Context, v *vault.Vault, r runner.Runner) error {
             return fmt.Errorf("watch %s: %w", sddDir, err)
         }
 
+        var debounceTimer *time.Timer
         for {
             select {
             case event := <-watcher.Events:
                 if isNewSDD(event) {
-                    time.Sleep(debounce)
-                    events <- event.Name
+                    if debounceTimer != nil { debounceTimer.Stop() }
+                    name := event.Name
+                    debounceTimer = time.AfterFunc(debounce, func() {
+                        events <- name
+                    })
                 }
             case err := <-watcher.Errors:
                 return fmt.Errorf("watcher error: %w", err)
@@ -1456,11 +1467,3 @@ flowchart TD
 - [RTK](https://github.com/rtk-ai/rtk) — token compression
 - [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — Tier 3 knowledge
 - [GitHub Projects API](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-api-to-manage-projects)
-
-- [Go MCP SDK (mcp-go)](https://github.com/mark3labs/mcp-go)
-- [Cobra CLI](https://cobra.dev/)
-- [fsnotify](https://github.com/fsnotify/fsnotify)
-- [go-toml](https://github.com/pelletier/go-toml)
-- [slog (structured logging)](https://pkg.go.dev/log/slog)
-- [RTK](https://github.com/rtk-ai/rtk) — token compression
-- [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — Tier 3
