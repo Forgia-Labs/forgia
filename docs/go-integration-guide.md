@@ -281,79 +281,148 @@ func (p *Process) Kill() error {
 }
 ```
 
-## 5. MCP Provider Chaining
+## 5. MCP Provider Chaining (Generic ToolProvider Interface)
 
-Forgia spawns MCP providers as subprocesses and communicates via JSON-RPC over stdio:
+Forgia doesn't hardcode integration with specific MCP servers. It uses a **generic `ToolProvider` interface** that any MCP server can implement. Adding a new provider = one config entry, zero code.
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph forgia ["forgia mcp (our server)"]
         Server["MCP Server\n(serves Claude)"]
-        Client["MCP Client\n(connects to providers)"]
+        Registry["ToolProvider Registry"]
+        Server --> Registry
     end
 
-    subgraph providers ["Spawned Subprocesses"]
-        CM["codebase-memory-mcp\n(stdin/stdout JSON-RPC)"]
-        Future["future-mcp-server\n(stdin/stdout JSON-RPC)"]
+    subgraph providers ["ToolProvider implementations"]
+        CM["codebase-memory-mcp\n(MCP subprocess)"]
+        Future1["future-mcp-server\n(MCP subprocess)"]
+        Future2["custom-provider\n(Go plugin, in-process)"]
     end
 
     Claude["Claude Code"] <-->|"MCP stdio"| Server
-    Client <-->|"MCP stdio pipes"| CM
-    Client <-->|"MCP stdio pipes"| Future
-
-    Server --> Client
+    Registry --> CM
+    Registry --> Future1
+    Registry --> Future2
 
     style forgia fill:#fff3cd,stroke:#ffc107
     style providers fill:#cce5ff,stroke:#0d6efd
+```
+
+### ToolProvider interface
+
+```go
+// internal/mcp/provider.go
+
+// ToolProvider abstracts any external tool source (MCP server, API, in-process)
+type ToolProvider interface {
+    // Name returns the provider identifier
+    Name() string
+
+    // Tools returns the tool definitions this provider exposes
+    Tools() []ToolDefinition
+
+    // Call invokes a tool and returns the result
+    Call(ctx context.Context, tool string, params map[string]any) (any, error)
+
+    // Start initializes the provider (spawn subprocess, connect API, etc.)
+    Start(ctx context.Context) error
+
+    // Stop gracefully shuts down the provider
+    Stop() error
+
+    // Healthy returns true if the provider is ready to serve
+    Healthy() bool
+}
+
+// ToolDefinition describes a tool exposed by a provider
+type ToolDefinition struct {
+    Name        string            `json:"name"`
+    Description string            `json:"description"`
+    Parameters  map[string]any    `json:"parameters"`
+    Namespace   string            `json:"-"`  // "forgia_" prefix when re-exposed
+}
+```
+
+### MCPSubprocessProvider (generic MCP-over-stdio)
+
+```go
+// internal/mcp/subprocess_provider.go
+
+// MCPSubprocessProvider connects to any MCP server via stdio
+type MCPSubprocessProvider struct {
+    name     string
+    command  string
+    args     []string
+    process  *process.Process
+    client   *mcpclient.Client  // JSON-RPC client over stdin/stdout
+    lazy     bool
+    restart  bool
+}
+
+// Any MCP server becomes a ToolProvider with zero custom code:
+// - codebase-memory-mcp
+// - future-analytics-mcp
+// - custom-team-mcp
+// All use the same MCPSubprocessProvider, just different config.
 ```
 
 ### Configuration
 
 ```toml
 # .forgia/config.toml
+
+# Each provider entry creates an MCPSubprocessProvider instance
 [mcp.providers.codebase-memory]
 command = "codebase-memory-mcp"
 args = []
-lazy = true              # spawn on first call, not at startup
+lazy = true                      # spawn on first call, not at startup
 restart_on_crash = true
-health_check = "list_projects"  # tool to call for health check
+health_check = "list_projects"   # tool to call for health check
+expose_tools = ["search_graph", "detect_changes", "get_architecture", "trace_call_path"]
+namespace = "code"               # tools become forgia_code_search_graph, etc.
+
+[mcp.providers.my-custom-server]
+command = "/usr/local/bin/my-mcp"
+args = ["--config", "/path/to/config"]
+lazy = false                     # start immediately
+expose_tools = ["*"]             # expose all tools
+namespace = "custom"
 ```
 
-### Lazy spawning
+### Provider Registry
 
 ```go
-// internal/mcp/providers.go
+// internal/mcp/registry.go
 
-type ProviderManager struct {
-    configs   map[string]ProviderConfig
-    instances map[string]*process.Process
-    mu        sync.Mutex
+type ProviderRegistry struct {
+    providers map[string]ToolProvider
+    mu        sync.RWMutex
 }
 
-// Get returns a running provider, spawning if needed (lazy)
-func (pm *ProviderManager) Get(name string) (*process.Process, error) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+// AllTools returns merged tool list from all providers (with namespace prefix)
+func (r *ProviderRegistry) AllTools() []ToolDefinition {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
 
-    if p, ok := pm.instances[name]; ok {
-        // Check if still alive
-        select {
-        case <-p.Done:
-            // Died — restart if configured
-            delete(pm.instances, name)
-        default:
-            return p, nil
+    var tools []ToolDefinition
+    for _, p := range r.providers {
+        for _, t := range p.Tools() {
+            t.Name = fmt.Sprintf("forgia_%s_%s", t.Namespace, t.Name)
+            tools = append(tools, t)
         }
     }
+    return tools
+}
 
-    // Spawn new instance
-    cfg := pm.configs[name]
-    p, err := process.Spawn(context.Background(), cfg.Command, cfg.Args...)
-    if err != nil {
-        return nil, err
+// Call routes a tool call to the right provider
+func (r *ProviderRegistry) Call(ctx context.Context, tool string, params map[string]any) (any, error) {
+    // Parse "forgia_code_search_graph" → provider="code", tool="search_graph"
+    provider, toolName := parseNamespacedTool(tool)
+    p, ok := r.providers[provider]
+    if !ok {
+        return nil, fmt.Errorf("unknown provider: %s", provider)
     }
-    pm.instances[name] = p
-    return p, nil
+    return p.Call(ctx, toolName, params)
 }
 ```
 
@@ -755,7 +824,456 @@ type ExecResult struct {
 
 Saved to `.forgia/logs/exec-{sdd-id}-{timestamp}.json`.
 
+## 13. Project Board Integration (Generic Interface)
+
+The project board (GitHub Projects, GitLab Boards) is the **central authority** for FD/SDD IDs and status. The Go binary uses a generic interface — not tied to GitHub.
+
+```mermaid
+flowchart TD
+    subgraph board ["ProjectBoard interface"]
+        Interface["CreateCard()\nMoveCard()\nGetCards()\nNextID()"]
+    end
+
+    Interface --> GH["GitHubProjectBoard\n(gh API / GraphQL)"]
+    Interface --> GL["GitLabBoard\n(glab API / REST)"]
+    Interface --> Local["LocalBoard\n(fallback: .forgia/ only)"]
+
+    style board fill:#fff3cd,stroke:#ffc107
+    style GH fill:#d4edda,stroke:#28a745
+    style GL fill:#cce5ff,stroke:#0d6efd
+    style Local fill:#f0f0f0,stroke:#999
+```
+
+### Interface
+
+```go
+// internal/board/board.go
+
+type ProjectBoard interface {
+    // NextID generates a collision-proof ID for a new FD
+    NextID(prefix string) (string, error)
+
+    // Card CRUD
+    CreateCard(item BoardItem) (string, error)
+    UpdateCard(id string, fields map[string]any) error
+    MoveCard(id string, column string) error
+    GetCards(filter CardFilter) ([]BoardItem, error)
+
+    // Sync
+    SyncFromVault(vault *vault.Vault) error   // push local state → board
+    SyncToVault(vault *vault.Vault) error     // pull board state → local
+}
+
+type BoardItem struct {
+    ID        string            `json:"id"`
+    Title     string            `json:"title"`
+    Column    string            `json:"column"`
+    Assignee  string            `json:"assignee"`
+    Priority  string            `json:"priority"`
+    Labels    []string          `json:"labels"`
+    Fields    map[string]string `json:"fields"`  // custom fields (duration, tokens, etc.)
+}
+```
+
+### Authentication
+
+```go
+// GitHub: uses gh CLI auth (already configured)
+// GitLab: uses glab CLI auth or GITLAB_TOKEN env
+// Local:  no auth needed (filesystem only)
+
+func ResolveBoard(cfg *config.Config) (ProjectBoard, error) {
+    switch cfg.Board.Provider {
+    case "github":
+        return NewGitHubBoard(cfg.Board.GitHub)
+    case "gitlab":
+        return NewGitLabBoard(cfg.Board.GitLab)
+    default:
+        return NewLocalBoard()  // fallback: works offline
+    }
+}
+```
+
+### Configuration
+
+```toml
+# .forgia/config.toml
+[board]
+provider = "github"           # github | gitlab | local
+
+[board.github]
+project_number = 1            # GitHub Project number
+owner = "Deepzima"
+
+[board.gitlab]
+project_id = 123
+board_id = 1
+```
+
+### Sync flow
+
+```mermaid
+sequenceDiagram
+    participant Vault as .forgia/ files
+    participant Board as ProjectBoard
+    participant Beads as Beads (local cache)
+
+    Note over Vault,Beads: FD status changes locally
+
+    Vault->>Board: SyncFromVault() → create/update cards
+    Board-->>Beads: cache card IDs + status
+
+    Note over Vault,Beads: Card moved on board (by another engineer)
+
+    Board->>Vault: SyncToVault() → update frontmatter
+    Board-->>Beads: update local cache
+```
+
+## 14. Docker Engine API (Container Management)
+
+The Go binary manages Docker containers via the **Docker Engine API** over the Unix socket — no `docker` CLI subprocess needed.
+
+```mermaid
+flowchart LR
+    subgraph forgia ["Forgia Go binary"]
+        DockerClient["Docker SDK Client\n(github.com/docker/docker/client)"]
+    end
+
+    subgraph docker ["Docker Engine"]
+        Socket["/var/run/docker.sock"]
+        Container["Sandbox Container\n(claude + RTK)"]
+    end
+
+    DockerClient <-->|"Unix socket\nor TCP/SSH"| Socket
+    Socket --> Container
+
+    style forgia fill:#fff3cd,stroke:#ffc107
+    style docker fill:#cce5ff,stroke:#0d6efd
+```
+
+### Container lifecycle
+
+```go
+// internal/runner/docker.go
+
+import (
+    "github.com/docker/docker/api/types/container"
+    "github.com/docker/docker/client"
+)
+
+type DockerSandbox struct {
+    cli         *client.Client
+    image       string
+    networkAllow []string
+}
+
+func NewDockerSandbox(cfg config.SandboxConfig) (*DockerSandbox, error) {
+    cli, err := client.NewClientWithOpts(client.FromEnv)
+    if err != nil {
+        return nil, fmt.Errorf("docker client: %w", err)
+    }
+    return &DockerSandbox{cli: cli, image: cfg.Image, networkAllow: cfg.NetworkAllow}, nil
+}
+
+func (d *DockerSandbox) Run(ctx context.Context, workDir string, cmd []string, env []string) (*ExecResult, error) {
+    // 1. Create container
+    resp, err := d.cli.ContainerCreate(ctx,
+        &container.Config{
+            Image: d.image,
+            Cmd:   cmd,
+            Env:   env,
+            WorkingDir: "/workspace",
+        },
+        &container.HostConfig{
+            Binds: []string{workDir + ":/workspace"},
+            // No ~/.ssh, ~/.gnupg, ~/.aws mounted
+            Resources: container.Resources{
+                Memory:   256 * 1024 * 1024,  // 256MB limit
+                NanoCPUs: 2000000000,          // 2 CPU
+            },
+        },
+        nil, nil, "forgia-sandbox-"+uuid(),
+    )
+    if err != nil {
+        return nil, fmt.Errorf("container create: %w", err)
+    }
+    defer d.cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{})
+
+    // 2. Start
+    if err := d.cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+        return nil, fmt.Errorf("container start: %w", err)
+    }
+
+    // 3. Stream logs (for live file monitor)
+    logs, _ := d.cli.ContainerLogs(ctx, resp.ID, container.LogsOptions{
+        ShowStdout: true, ShowStderr: true, Follow: true,
+    })
+    go streamToOutput(logs)  // live output to terminal
+
+    // 4. Wait for completion
+    statusCh, errCh := d.cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
+    select {
+    case err := <-errCh:
+        return nil, fmt.Errorf("container wait: %w", err)
+    case status := <-statusCh:
+        return &ExecResult{ExitCode: int(status.StatusCode)}, nil
+    }
+}
+```
+
+### Remote Docker support
+
+```toml
+# .forgia/config.toml
+[runner.claude]
+sandbox = "docker"
+
+[docker]
+# Default: local socket
+host = "unix:///var/run/docker.sock"
+
+# Remote Docker via TCP
+# host = "tcp://build-server:2376"
+# tls_verify = true
+# cert_path = "~/.docker/certs"
+
+# Remote Docker via SSH
+# host = "ssh://user@build-server"
+```
+
+The same `client.NewClientWithOpts(client.FromEnv)` respects `DOCKER_HOST` env var — works with local, TCP, and SSH transports without code changes.
+
+## 15. RTK Integration (Token Compression)
+
+[RTK](https://github.com/rtk-ai/rtk) compresses command output inside the sandbox container. The Go binary doesn't talk to RTK directly — it configures the container to include RTK and extracts savings from the RTK SQLite DB after execution.
+
+```mermaid
+flowchart TD
+    subgraph forgia ["Forgia Go binary"]
+        Prepare["Prepare sandbox\n(install RTK in container)"]
+        Extract["After exec:\nextract RTK savings DB"]
+    end
+
+    subgraph container ["Docker Sandbox"]
+        RTK["RTK auto-rewrite hook\n(intercepts all bash commands)"]
+        Claude["Claude agent\n(sees compressed output)"]
+        RTKDB["RTK SQLite DB\n(/tmp/rtk-savings.db)"]
+
+        Claude -->|"git diff"| RTK
+        RTK -->|"compressed output"| Claude
+        RTK --> RTKDB
+    end
+
+    Prepare -->|"docker create\nwith RTK installed"| container
+    RTKDB -->|"docker cp"| Extract
+    Extract --> Report["ExecResult\ntokens_raw, tokens_compressed"]
+
+    style forgia fill:#fff3cd,stroke:#ffc107
+    style container fill:#d4edda,stroke:#28a745
+```
+
+### Implementation
+
+```go
+// internal/runner/rtk.go
+
+// PrepareRTK adds RTK installation to the container setup
+func PrepareRTK(containerConfig *container.Config) {
+    // RTK binary pre-installed in the sandbox image
+    // OR installed at container start:
+    containerConfig.Cmd = []string{
+        "sh", "-c",
+        "curl -sL https://github.com/rtk-ai/rtk/releases/latest/download/rtk-linux-amd64 -o /usr/local/bin/rtk && " +
+        "chmod +x /usr/local/bin/rtk && " +
+        "eval $(rtk hook) && " +  // activate auto-rewrite
+        "claude --dangerously-skip-permissions -p \"$FORGIA_PROMPT\"",
+    }
+}
+
+// ExtractRTKSavings copies the RTK DB from container and parses savings
+func ExtractRTKSavings(ctx context.Context, cli *client.Client, containerID string) (raw, compressed int, err error) {
+    reader, _, err := cli.CopyFromContainer(ctx, containerID, "/tmp/rtk-savings.db")
+    if err != nil {
+        return 0, 0, nil  // RTK savings not available — not an error
+    }
+    defer reader.Close()
+
+    // Parse SQLite DB for total savings
+    // ...
+    return raw, compressed, nil
+}
+```
+
+### Configuration
+
+```toml
+# .forgia/config.toml
+[runner.claude]
+use_rtk = true                 # install RTK in sandbox container
+rtk_track_savings = true       # extract savings for exec report
+```
+
+## 16. Beads Integration (Local Cache)
+
+[Beads](https://github.com/steveyegge/beads) is **always optional** — the Go binary must work 100% without it. When available, it provides fast local caching and dependency graph.
+
+```mermaid
+flowchart TD
+    subgraph forgia ["Forgia Go binary"]
+        Check{"bd available\n+ .beads/ exists\n+ circuit breaker OK?"}
+    end
+
+    Check -->|yes| BD["Use Beads\n(dependency graph, fast queries)"]
+    Check -->|no| Vault["Fallback to .forgia/ files only\n(slower, no dep graph)"]
+
+    BD --> Result["Result"]
+    Vault --> Result
+
+    style Check fill:#fff3cd,stroke:#ffc107
+    style BD fill:#d4edda,stroke:#28a745
+    style Vault fill:#f0f0f0,stroke:#999
+```
+
+### Resilient bd interaction
+
+```go
+// internal/beads/beads.go
+
+type BeadsClient struct {
+    available bool
+    timeout   time.Duration
+}
+
+func NewBeadsClient() *BeadsClient {
+    bc := &BeadsClient{timeout: 5 * time.Second}
+
+    // Check: bd installed?
+    if _, err := exec.LookPath("bd"); err != nil {
+        bc.available = false
+        return bc
+    }
+
+    // Check: circuit breaker open?
+    if isCircuitBreakerOpen() {
+        slog.Warn("beads circuit breaker is open — using fallback",
+            "fix", "mise run bd:reset")
+        bc.available = false
+        return bc
+    }
+
+    bc.available = true
+    return bc
+}
+
+// Call executes a bd command with timeout and fallback
+func (bc *BeadsClient) Call(ctx context.Context, args ...string) (string, error) {
+    if !bc.available {
+        return "", ErrBeadsUnavailable
+    }
+
+    ctx, cancel := context.WithTimeout(ctx, bc.timeout)
+    defer cancel()
+
+    cmd := exec.CommandContext(ctx, "bd", args...)
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        if ctx.Err() == context.DeadlineExceeded {
+            slog.Warn("beads call timed out", "args", args)
+            return "", ErrBeadsTimeout
+        }
+        return "", fmt.Errorf("bd %v: %w", args, err)
+    }
+
+    return string(output), nil
+}
+
+func isCircuitBreakerOpen() bool {
+    matches, _ := filepath.Glob("/tmp/beads-dolt-circuit-*.json")
+    for _, f := range matches {
+        data, _ := os.ReadFile(f)
+        if strings.Contains(string(data), `"state":"open"`) {
+            return true
+        }
+    }
+    return false
+}
+```
+
+### Usage pattern
+
+```go
+// Everywhere Beads is used, always with fallback:
+
+func (v *Vault) GetDependencies(fdID string) ([]string, error) {
+    // Try Beads first
+    deps, err := v.beads.Call(ctx, "deps", fdID)
+    if err == nil {
+        return parseDeps(deps), nil
+    }
+
+    // Fallback: parse SDD frontmatter for deps
+    sdds, _ := v.ListSDDs(fdID)
+    // ... extract dependencies from YAML
+    return manualDeps, nil
+}
+```
+
+## 17. External Services Summary
+
+```mermaid
+flowchart TD
+    subgraph forgia ["Forgia Go binary"]
+        Core["Core\n(vault, config, guardrails)"]
+        MCPServer["MCP Server"]
+        RunnerMgr["Runner Manager"]
+    end
+
+    subgraph external ["External Services"]
+        Claude["Claude Code\n(subprocess or Docker)"]
+        Docker["Docker Engine\n(Unix socket API)"]
+        RTK["RTK\n(in-container hook)"]
+        CM["codebase-memory-mcp\n(MCP subprocess)"]
+        Board["GitHub/GitLab\n(API/CLI)"]
+        Beads["Beads\n(bd CLI, optional)"]
+    end
+
+    Core --> MCPServer
+    Core --> RunnerMgr
+
+    MCPServer <-->|"ToolProvider"| CM
+    MCPServer <-->|"ProjectBoard"| Board
+    MCPServer <-->|"BeadsClient"| Beads
+
+    RunnerMgr -->|"Docker SDK"| Docker
+    Docker --> Claude
+    Docker --> RTK
+
+    style forgia fill:#fff3cd,stroke:#ffc107
+    style external fill:#cce5ff,stroke:#0d6efd
+```
+
+| Service | Connection | Interface | Required? |
+|---------|-----------|-----------|-----------|
+| Claude Code | subprocess (host) or Docker (sandbox) | `Runner` | Yes (primary runner) |
+| Docker Engine | Unix socket / TCP / SSH | `DockerSandbox` (SDK client) | No (fallback: host mode) |
+| RTK | Inside Docker container | N/A (Go binary doesn't talk to RTK) | No (token optimization) |
+| codebase-memory-mcp | MCP subprocess (stdio) | `ToolProvider` | No (Tier 3 enrichment) |
+| GitHub/GitLab | CLI (gh/glab) or REST API | `ProjectBoard` | No (fallback: LocalBoard) |
+| Beads (bd) | CLI subprocess with timeout | `BeadsClient` | No (fallback: vault files) |
+
+**Design principle**: every external service is **optional with graceful fallback**. Forgia works with zero external services (just `.forgia/` files). Each service adds capabilities when available.
+
 ## References
+
+- [Go MCP SDK (mcp-go)](https://github.com/mark3labs/mcp-go)
+- [Cobra CLI](https://cobra.dev/)
+- [fsnotify](https://github.com/fsnotify/fsnotify)
+- [go-toml](https://github.com/pelletier/go-toml)
+- [slog (structured logging)](https://pkg.go.dev/log/slog)
+- [Docker SDK for Go](https://pkg.go.dev/github.com/docker/docker/client)
+- [RTK](https://github.com/rtk-ai/rtk) — token compression
+- [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — Tier 3 knowledge
+- [GitHub Projects API](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-api-to-manage-projects)
 
 - [Go MCP SDK (mcp-go)](https://github.com/mark3labs/mcp-go)
 - [Cobra CLI](https://cobra.dev/)
