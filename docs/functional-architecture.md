@@ -503,57 +503,92 @@ sequenceDiagram
     Forgia->>Board: update card with FD-c4d5 ID
 ```
 
-## 10. Skill Integration
+## 10. Skill System
 
-Skills are Claude Code slash commands that interact with the vault through the Go binary:
+A skill is any capability Forgia exposes — to humans (slash commands), to agents (MCP tools), or both. Three types:
 
 ```mermaid
-flowchart LR
-    subgraph skills ["Slash Commands"]
-        FDNew["/fd-new"]
-        FDDeep["/fd-deep"]
-        FDReview["/fd-review"]
-        FDSDD["/fd-sdd"]
-        FDVerify["/fd-verify"]
-        FDClose["/fd-close"]
-        ArchInit["/arch-init"]
-        ArchReview["/arch-review"]
-        ArchUpdate["/arch-update"]
-        Threat["/fd-threat-model"]
-        DryRun["/sdd-dry-run"]
+flowchart TD
+    subgraph types ["Skill Types"]
+        SC["SlashCommand\n(/fd-new, /fd-review)\nUser invokes explicitly"]
+        MT["MCPTool\n(forgia_blast_radius)\nAgent invokes directly"]
+        Both["Both\n(/arch-review + forgia_arch_review)\nSame Go logic, two entry points"]
     end
 
-    subgraph modes ["How they work"]
-        Direct["Direct: Claude reads .forgia/\nand executes instructions\n(current — slash command .md files)"]
-        MCP_Mode["MCP: Claude calls forgia tools\n(future — Go binary handles logic)"]
+    subgraph impl ["Implementation"]
+        Native["Native Skill\nGo logic in internal/"]
+        Composite["Composite Skill\nWraps external MCP provider\n+ adds Forgia logic"]
     end
 
-    skills --> Direct
-    skills -.->|"post Go rewrite"| MCP_Mode
+    SC --> Native
+    MT --> Native
+    MT --> Composite
+    Both --> Native
 
-    style skills fill:#fff3cd,stroke:#ffc107
-    style MCP_Mode fill:#d4edda,stroke:#28a745
+    subgraph providers ["Composite sources"]
+        CM["codebase-memory-mcp\nsearch_graph, detect_changes,\ntrace_call_path, get_architecture"]
+    end
+
+    Composite --> providers
+
+    style SC fill:#fff3cd,stroke:#ffc107
+    style MT fill:#cce5ff,stroke:#0d6efd
+    style Both fill:#d4edda,stroke:#28a745
+    style Composite fill:#f3e5f5,stroke:#9c27b0
 ```
 
-**Current (bash era)**: Skills are `.md` files with instructions. Claude reads them and executes using its own tools (Read, Write, Bash).
+### Skill Registry
 
-**Future (Go era)**: Skills call MCP tools (`forgia_fd_new`, `forgia_arch_review`). Logic is in Go, Claude just orchestrates.
+All skills register in a central `skill.Registry`. The MCP server and slash command installer both read from it:
 
-### Skill → Feature mapping
+```
+skill.Registry
+  ├── SlashCommands() → list of .md files to install
+  ├── MCPTools()      → list of MCP tool definitions to advertise
+  └── Get(name)       → execute skill logic
+```
 
-| Skill | Feature Issues | MCP Tool (future) |
-|-------|---------------|-------------------|
-| `/fd-new` | #30 (multi-eng), #29 (competitive) | `forgia_fd_new` |
-| `/fd-deep` | — (exists, 4 parallel agents) | `forgia_fd_deep` |
-| `/fd-review` | #18 (compliance scoring) | `forgia_fd_review` |
-| `/fd-sdd` | #35 (board sync) | `forgia_fd_sdd` |
-| `/fd-verify` | #17 (post-exec scan) | `forgia_fd_verify` |
-| `/fd-close` | #29 (reject) | `forgia_fd_close` |
-| `/arch-init` | #27 (DDD), #36 (codebase-memory) | `forgia_arch_init` |
-| `/arch-review` | #22, #36 | `forgia_arch_review` |
-| `/arch-update` | #27 | `forgia_arch_update` |
-| `/fd-threat-model` | #21 | `forgia_threat_model` |
-| `/sdd-dry-run` | #23, #36 | `forgia_dry_run` |
+### Slash Command Skills (user-facing)
+
+| Skill | Category | Mode | Issue |
+|-------|----------|------|-------|
+| `/fd-new` | fd | both | #29, #30 |
+| `/fd-deep` | fd | slash_command | — |
+| `/fd-review` | fd | both | #18 |
+| `/fd-sdd` | fd | both | #35 |
+| `/fd-verify` | fd | both | #17 |
+| `/fd-close` | fd | both | #29 |
+| `/fd-status` | fd | both | — |
+| `/arch-init` | architecture | both | #27 |
+| `/arch-review` | architecture | both | #27 |
+| `/arch-update` | architecture | both | #27 |
+| `/fd-threat-model` | design | both | #21 |
+| `/fd-arch-review` | design | both | #22 |
+| `/sdd-dry-run` | design | both | #23 |
+
+### Composite Skills (codebase-memory-mcp derived)
+
+These wrap external MCP provider tools with Forgia logic (guardrails check, context enrichment):
+
+| Skill | Provider Tool | Forgia adds | Used by |
+|-------|--------------|-------------|---------|
+| `forgia_search_code` | `search_graph` | Guardrails filter on results | Agent search |
+| `forgia_blast_radius` | `detect_changes` | Cross-check with bounded contexts | Gate intelligente |
+| `forgia_trace_calls` | `trace_call_path` | Validate context interface contracts | `/arch-review` |
+| `forgia_architecture` | `get_architecture` | Merge with existing architecture/ | `/arch-init` |
+| `forgia_dead_code` | `search_graph(dead_code)` | Filter by SDD scope | Cleanup |
+| `forgia_reindex` | `index_repository` | Trigger after exec | Post-exec |
+
+### Skill evolution
+
+```
+Today (bash):       .md file → Claude interprets → Read/Write/Bash
+Transition:         .md file → Claude calls forgia CLI → Go logic
+Future (MCP):       .md thin wrapper → forgia_tool() MCP call → Go logic
+                    Agent can also call MCP tool directly (no .md needed)
+```
+
+Slash commands stay for **explicit UX** and **context savings**. MCP tools exist for **agent-to-agent** calls.
 
 ## 11. Configuration Hierarchy
 
