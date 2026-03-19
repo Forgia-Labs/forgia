@@ -20,31 +20,26 @@ type Process struct {
 	Stdout io.ReadCloser
 	Stderr io.ReadCloser
 
-	done   chan struct{} // closed when process exits (safe for multiple readers)
-	err    error         // exit error, valid after done is closed
-	cancel context.CancelFunc
+	done chan struct{} // closed when process exits (safe for multiple readers)
+	err  error         // exit error, valid after done is closed
 }
 
 // Spawn starts a subprocess with monitoring.
 // The ctx controls the subprocess lifetime — cancelling ctx kills the process.
 func Spawn(ctx context.Context, name string, args ...string) (*Process, error) {
-	ctx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(ctx, name, args...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		cancel()
 		return nil, fmt.Errorf("stdout pipe %s: %w", name, err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		cancel()
 		return nil, fmt.Errorf("stderr pipe %s: %w", name, err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		cancel()
 		return nil, fmt.Errorf("spawn %s: %w", name, err)
 	}
 
@@ -54,7 +49,6 @@ func Spawn(ctx context.Context, name string, args ...string) (*Process, error) {
 		Stdout: stdout,
 		Stderr: stderr,
 		done:   make(chan struct{}),
-		cancel: cancel,
 	}
 
 	// Monitor in background — close channel on exit (safe for multiple readers).

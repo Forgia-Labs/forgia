@@ -91,11 +91,13 @@ func (s *CompositeSkill) Mode() Mode { return s.mode }
 func (s *CompositeSkill) SlashCommandFile() string { return "" }
 
 // MCPToolDef returns the MCP tool definition.
+// NOTE: Namespace is set to the skill name here (not "forgia") because this definition
+// is returned directly to the MCP client, NOT passed through ProviderRegistry.AllTools()
+// which would double-prefix it as "forgia_forgia_<tool>".
 func (s *CompositeSkill) MCPToolDef() *mcp.ToolDefinition {
 	return &mcp.ToolDefinition{
 		Name:        s.name,
 		Description: s.description,
-		Namespace:   "forgia",
 	}
 }
 
