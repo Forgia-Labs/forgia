@@ -48,9 +48,9 @@ func (b *GitHubBoard) SetVault(reader VaultReader, writer VaultWriter) {
 
 // resolveProject fetches the project ID and status field options.
 func (b *GitHubBoard) resolveProject(ctx context.Context) error {
-	query := fmt.Sprintf(`{
-		user(login: %q) {
-			projectV2(number: %d) {
+	query := `query($owner: String!, $number: Int!) {
+		user(login: $owner) {
+			projectV2(number: $number) {
 				id
 				fields(first: 20) {
 					nodes {
@@ -63,33 +63,51 @@ func (b *GitHubBoard) resolveProject(ctx context.Context) error {
 				}
 			}
 		}
-	}`, b.owner, b.number)
+	}`
+	vars := map[string]string{
+		"owner":  b.owner,
+		"number": fmt.Sprintf("%d", b.number),
+	}
 
-	result, err := b.graphql(ctx, query)
+	result, err := b.graphql(ctx, query, vars)
 	if err != nil {
 		return err
 	}
 
-	projectID, ok := jsonPath(result, "data", "user", "projectV2", "id")
+	projectIDVal, ok := jsonPath(result, "data", "user", "projectV2", "id")
 	if !ok {
 		return fmt.Errorf("project %s/%d not found", b.owner, b.number)
 	}
-	b.projectID = projectID.(string)
+	pid, ok := projectIDVal.(string)
+	if !ok {
+		return fmt.Errorf("unexpected project ID type: %T", projectIDVal)
+	}
+	b.projectID = pid
 
-	fields, ok := jsonPath(result, "data", "user", "projectV2", "fields", "nodes")
+	fieldsVal, ok := jsonPath(result, "data", "user", "projectV2", "fields", "nodes")
 	if !ok {
 		return fmt.Errorf("could not read project fields")
 	}
+	fieldNodes, ok := fieldsVal.([]any)
+	if !ok {
+		return fmt.Errorf("unexpected fields type: %T", fieldsVal)
+	}
 
 	b.statusOptions = make(map[string]string)
-	for _, field := range fields.([]any) {
-		f := field.(map[string]any)
+	for _, field := range fieldNodes {
+		f, ok := field.(map[string]any)
+		if !ok {
+			continue
+		}
 		name, _ := f["name"].(string)
 		if name == "Status" {
 			b.statusFieldID, _ = f["id"].(string)
 			if options, ok := f["options"].([]any); ok {
 				for _, opt := range options {
-					o := opt.(map[string]any)
+					o, ok := opt.(map[string]any)
+					if !ok {
+						continue
+					}
 					optName, _ := o["name"].(string)
 					optID, _ := o["id"].(string)
 					b.statusOptions[optName] = optID
@@ -118,27 +136,34 @@ func (b *GitHubBoard) NextID(ctx context.Context, prefix string) (string, error)
 
 // CreateCard adds an item to the project board.
 func (b *GitHubBoard) CreateCard(ctx context.Context, item BoardItem) (string, error) {
-	mutation := fmt.Sprintf(`mutation {
+	mutation := `mutation($projectId: ID!, $title: String!, $body: String!) {
 		addProjectV2DraftIssue(input: {
-			projectId: %q
-			title: %q
-			body: %q
+			projectId: $projectId
+			title: $title
+			body: $body
 		}) {
 			projectItem { id }
 		}
-	}`, b.projectID, item.Title, fmt.Sprintf("ID: %s\nPriority: %s\nAssignee: %s", item.ID, item.Priority, item.Assignee))
+	}`
+	vars := map[string]string{
+		"projectId": b.projectID,
+		"title":     item.Title,
+		"body":      fmt.Sprintf("ID: %s\nPriority: %s\nAssignee: %s", item.ID, item.Priority, item.Assignee),
+	}
 
-	result, err := b.graphql(ctx, mutation)
+	result, err := b.graphql(ctx, mutation, vars)
 	if err != nil {
 		return "", fmt.Errorf("create card %q: %w", item.Title, err)
 	}
 
-	cardID, ok := jsonPath(result, "data", "addProjectV2DraftIssue", "projectItem", "id")
+	cardIDVal, ok := jsonPath(result, "data", "addProjectV2DraftIssue", "projectItem", "id")
 	if !ok {
 		return "", fmt.Errorf("create card %q: could not parse response", item.Title)
 	}
-
-	itemID := cardID.(string)
+	itemID, ok := cardIDVal.(string)
+	if !ok {
+		return "", fmt.Errorf("create card %q: unexpected ID type: %T", item.Title, cardIDVal)
+	}
 
 	if item.Column != "" {
 		if err := b.MoveCard(ctx, itemID, item.Column); err != nil {
@@ -166,18 +191,24 @@ func (b *GitHubBoard) MoveCard(ctx context.Context, id string, column string) er
 		return fmt.Errorf("unknown status column %q, available: %v", column, b.statusOptionNames())
 	}
 
-	mutation := fmt.Sprintf(`mutation {
+	mutation := `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
 		updateProjectV2ItemFieldValue(input: {
-			projectId: %q
-			itemId: %q
-			fieldId: %q
-			value: { singleSelectOptionId: %q }
+			projectId: $projectId
+			itemId: $itemId
+			fieldId: $fieldId
+			value: { singleSelectOptionId: $optionId }
 		}) {
 			projectV2Item { id }
 		}
-	}`, b.projectID, id, b.statusFieldID, optionID)
+	}`
+	vars := map[string]string{
+		"projectId": b.projectID,
+		"itemId":    id,
+		"fieldId":   b.statusFieldID,
+		"optionId":  optionID,
+	}
 
-	_, err := b.graphql(ctx, mutation)
+	_, err := b.graphql(ctx, mutation, vars)
 	if err != nil {
 		return fmt.Errorf("move card %q to %q: %w", id, column, err)
 	}
@@ -188,8 +219,8 @@ func (b *GitHubBoard) MoveCard(ctx context.Context, id string, column string) er
 
 // GetCards returns items from the project, optionally filtered.
 func (b *GitHubBoard) GetCards(ctx context.Context, filter CardFilter) ([]BoardItem, error) {
-	query := fmt.Sprintf(`{
-		node(id: %q) {
+	query := `query($projectId: ID!) {
+		node(id: $projectId) {
 			... on ProjectV2 {
 				items(first: 100) {
 					nodes {
@@ -210,23 +241,37 @@ func (b *GitHubBoard) GetCards(ctx context.Context, filter CardFilter) ([]BoardI
 				}
 			}
 		}
-	}`, b.projectID)
+	}`
+	vars := map[string]string{
+		"projectId": b.projectID,
+	}
 
-	result, err := b.graphql(ctx, query)
+	result, err := b.graphql(ctx, query, vars)
 	if err != nil {
 		return nil, fmt.Errorf("get cards: %w", err)
 	}
 
-	items, ok := jsonPath(result, "data", "node", "items", "nodes")
+	itemsVal, ok := jsonPath(result, "data", "node", "items", "nodes")
+	if !ok {
+		return nil, nil
+	}
+	itemNodes, ok := itemsVal.([]any)
 	if !ok {
 		return nil, nil
 	}
 
 	var cards []BoardItem
-	for _, item := range items.([]any) {
-		i := item.(map[string]any)
+	for _, item := range itemNodes {
+		i, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := i["id"].(string)
+		if id == "" {
+			continue
+		}
 		card := BoardItem{
-			ID: i["id"].(string),
+			ID: id,
 		}
 
 		if content, ok := i["content"].(map[string]any); ok {
@@ -236,7 +281,10 @@ func (b *GitHubBoard) GetCards(ctx context.Context, filter CardFilter) ([]BoardI
 		if fieldValues, ok := i["fieldValues"].(map[string]any); ok {
 			if nodes, ok := fieldValues["nodes"].([]any); ok {
 				for _, node := range nodes {
-					n := node.(map[string]any)
+					n, ok := node.(map[string]any)
+					if !ok {
+						continue
+					}
 					if name, ok := n["name"].(string); ok {
 						if field, ok := n["field"].(map[string]any); ok {
 							if fieldName, _ := field["name"].(string); fieldName == "Status" {
@@ -288,9 +336,10 @@ func (b *GitHubBoard) SyncFromVault(ctx context.Context) error {
 	for _, item := range vaultItems {
 		card, found := existing[item.ID]
 		if !found {
-			// New item — create card.
-			item.Title = item.ID + " " + item.Title
-			if _, err := b.CreateCard(ctx, item); err != nil {
+			// New item — create card with prefixed title (copy to avoid mutating input).
+			cardItem := item
+			cardItem.Title = item.ID + " " + item.Title
+			if _, err := b.CreateCard(ctx, cardItem); err != nil {
 				b.logger.WarnContext(ctx, "sync: failed to create card",
 					"id", item.ID, "error", err)
 				continue
@@ -348,8 +397,10 @@ func (b *GitHubBoard) SyncToVault(ctx context.Context) error {
 }
 
 // graphql executes a GraphQL query via gh CLI with context cancellation.
-func (b *GitHubBoard) graphql(ctx context.Context, query string) (map[string]any, error) {
-	cmd := exec.CommandContext(ctx, "gh", "api", "graphql", "-f", "query="+query)
+// Variables are passed via -f flags (gh handles JSON escaping).
+func (b *GitHubBoard) graphql(ctx context.Context, query string, vars map[string]string) (map[string]any, error) {
+	args := ghArgs(query, vars)
+	cmd := exec.CommandContext(ctx, "gh", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("gh api graphql: %w (output: %s)", err, strings.TrimSpace(string(output)))
@@ -365,6 +416,17 @@ func (b *GitHubBoard) graphql(ctx context.Context, query string) (map[string]any
 	}
 
 	return result, nil
+}
+
+// ghArgs builds the argument list for gh api graphql.
+// The query is passed via -f query=..., variables via -f key=value.
+// This ensures user-supplied values are never interpolated into the query string.
+func ghArgs(query string, vars map[string]string) []string {
+	args := []string{"api", "graphql", "-f", "query=" + query}
+	for k, v := range vars {
+		args = append(args, "-f", k+"="+v)
+	}
+	return args
 }
 
 // statusOptionNames returns available status names.

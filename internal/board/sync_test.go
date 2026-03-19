@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 )
 
@@ -149,4 +150,80 @@ func TestVaultReaderError(t *testing.T) {
 
 func testLogger() *slog.Logger {
 	return slog.With("component", "test-board")
+}
+
+func TestGhArgs_QuerySeparateFromVars(t *testing.T) {
+	query := `mutation($title: String!) { addProjectV2DraftIssue(input: { title: $title }) { projectItem { id } } }`
+	vars := map[string]string{
+		"title": `He said "hello" & <goodbye>`,
+	}
+
+	args := ghArgs(query, vars)
+
+	// Query must be in a -f query=... arg.
+	foundQuery := false
+	for _, a := range args {
+		if strings.HasPrefix(a, "query=") {
+			foundQuery = true
+			// The query string must NOT contain the user value.
+			if strings.Contains(a, "hello") {
+				t.Error("user value leaked into query string — GraphQL injection risk")
+			}
+		}
+	}
+	if !foundQuery {
+		t.Error("query arg not found")
+	}
+
+	// Variable must be in a separate -f arg.
+	foundVar := false
+	for _, a := range args {
+		if strings.HasPrefix(a, "title=") {
+			foundVar = true
+			if !strings.Contains(a, `"hello"`) {
+				t.Errorf("variable value not preserved: %q", a)
+			}
+		}
+	}
+	if !foundVar {
+		t.Error("title variable arg not found")
+	}
+}
+
+func TestGhArgs_DangerousCharsInVars(t *testing.T) {
+	dangerous := []string{
+		`"; DROP TABLE users; --`,
+		"title\nwith\nnewlines",
+		`back\slash`,
+		`} }) { projectItem { id } } } #`,
+	}
+
+	for _, val := range dangerous {
+		args := ghArgs("query { test }", map[string]string{"val": val})
+
+		// The query arg must never contain the dangerous value.
+		for _, a := range args {
+			if strings.HasPrefix(a, "query=") && strings.Contains(a, val) {
+				t.Errorf("dangerous value %q found in query arg", val)
+			}
+		}
+
+		// The value must be in its own -f arg.
+		found := false
+		for _, a := range args {
+			if strings.HasPrefix(a, "val=") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("variable for dangerous value %q not found", val)
+		}
+	}
+}
+
+func TestGhArgs_NoVars(t *testing.T) {
+	args := ghArgs("{ viewer { login } }", nil)
+	if len(args) != 4 { // "api", "graphql", "-f", "query=..."
+		t.Errorf("expected 4 args, got %d: %v", len(args), args)
+	}
 }

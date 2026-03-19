@@ -20,7 +20,7 @@ type FileVault struct {
 }
 
 // Open opens an existing .forgia/ vault at the given directory.
-// Returns an error if the vault doesn't exist — use Init to create one.
+// Returns an error if the vault doesn't exist — use InitVault to create one.
 func Open(dir string) (Vault, error) {
 	forgiaDir := filepath.Join(dir, ".forgia")
 	info, err := os.Stat(forgiaDir)
@@ -35,6 +35,24 @@ func Open(dir string) (Vault, error) {
 		dir:    forgiaDir,
 		logger: slog.With("component", "vault"),
 	}, nil
+}
+
+// InitVault creates and initializes a new .forgia/ vault at the given directory.
+// Use this when the vault doesn't exist yet. Use Open() for existing vaults.
+func InitVault(ctx context.Context, dir string, opts InitOptions) (Vault, error) {
+	forgiaDir := filepath.Join(dir, ".forgia")
+	if err := os.MkdirAll(forgiaDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create vault dir: %w", err)
+	}
+
+	fv := &FileVault{
+		dir:    forgiaDir,
+		logger: slog.With("component", "vault"),
+	}
+	if err := fv.Init(ctx, opts); err != nil {
+		return nil, err
+	}
+	return fv, nil
 }
 
 // Init scaffolds .forgia/ in the given directory.
@@ -83,6 +101,7 @@ func (v *FileVault) FDs() iter.Seq[*FD] {
 		fdDir := filepath.Join(v.dir, "fd")
 		entries, err := os.ReadDir(fdDir)
 		if err != nil {
+			v.logger.Warn("failed to read fd directory", "dir", fdDir, "error", err)
 			return
 		}
 		for _, e := range entries {
@@ -91,6 +110,7 @@ func (v *FileVault) FDs() iter.Seq[*FD] {
 			}
 			fd, err := v.parseFDFile(filepath.Join(fdDir, e.Name()))
 			if err != nil {
+				v.logger.Warn("failed to parse FD file", "file", e.Name(), "error", err)
 				continue
 			}
 			if !yield(fd) {
@@ -121,8 +141,8 @@ func (v *FileVault) GetFD(_ context.Context, id string) (*FD, error) {
 
 // CreateFD writes a new FD file.
 func (v *FileVault) CreateFD(_ context.Context, fd *FD) error {
-	if fd.ID == "" {
-		return fmt.Errorf("FD ID is required")
+	if err := validateID(fd.ID); err != nil {
+		return fmt.Errorf("invalid FD: %w", err)
 	}
 	path := filepath.Join(v.dir, "fd", fd.ID+".md")
 	if _, err := os.Stat(path); err == nil {
@@ -159,6 +179,9 @@ func (v *FileVault) SDDs(fdID string) iter.Seq[*SDD] {
 		sddDir := filepath.Join(v.dir, "sdd", fdID)
 		entries, err := os.ReadDir(sddDir)
 		if err != nil {
+			if !os.IsNotExist(err) {
+				v.logger.Warn("failed to read sdd directory", "dir", sddDir, "error", err)
+			}
 			return
 		}
 		for _, e := range entries {
@@ -168,6 +191,7 @@ func (v *FileVault) SDDs(fdID string) iter.Seq[*SDD] {
 			path := filepath.Join(sddDir, e.Name())
 			sdd, err := v.parseSDDFile(path)
 			if err != nil {
+				v.logger.Warn("failed to parse SDD file", "file", e.Name(), "error", err)
 				continue
 			}
 			if !yield(sdd) {
@@ -198,8 +222,11 @@ func (v *FileVault) GetSDD(_ context.Context, fdID, sddID string) (*SDD, error) 
 
 // CreateSDD writes a new SDD file.
 func (v *FileVault) CreateSDD(_ context.Context, sdd *SDD) error {
-	if sdd.ID == "" || sdd.FD == "" {
-		return fmt.Errorf("SDD ID and FD are required")
+	if err := validateID(sdd.ID); err != nil {
+		return fmt.Errorf("invalid SDD: %w", err)
+	}
+	if err := validateID(sdd.FD); err != nil {
+		return fmt.Errorf("invalid SDD parent FD: %w", err)
 	}
 
 	sddDir := filepath.Join(v.dir, "sdd", sdd.FD)
@@ -311,6 +338,26 @@ func (v *FileVault) GuardrailsRaw(_ context.Context) ([]byte, error) {
 func (v *FileVault) Render(_ context.Context, yamlPath string) error {
 	// TODO: implement full YAML → MD rendering
 	return fmt.Errorf("Render: not yet implemented for %s", yamlPath)
+}
+
+// --- validation helpers ---
+
+// validateID checks that an ID is safe for use as a filename.
+// Rejects path traversal attempts, absolute paths, and invalid characters.
+func validateID(id string) error {
+	if id == "" {
+		return fmt.Errorf("ID is required")
+	}
+	if strings.Contains(id, "..") {
+		return fmt.Errorf("ID %q contains path traversal", id)
+	}
+	if strings.ContainsAny(id, "/\\") {
+		return fmt.Errorf("ID %q contains path separator", id)
+	}
+	if filepath.IsAbs(id) {
+		return fmt.Errorf("ID %q is an absolute path", id)
+	}
+	return nil
 }
 
 // --- frontmatter parsing helpers ---
