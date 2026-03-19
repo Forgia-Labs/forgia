@@ -154,6 +154,10 @@ stateDiagram-v2
 │   ├── lang/                        ← per-language conventions (auto-detected)
 │   └── *.md                         ← coding, commit, review conventions
 │
+├── learnings/                       ← feedback from closed FDs (committed)
+│   ├── FD-<hash>.yaml               ← failure modes, successful patterns, suggestions
+│   └── ...
+│
 ├── logs/                            ← gitignored
 │   ├── exec-<sdd>-<timestamp>.json  ← execution reports
 │   └── exec-<sdd>-<timestamp>.log   ← execution logs
@@ -443,7 +447,175 @@ Everything else is autonomous.
 | GitHub Action | On schedule or on issue label `forgia:fd` | CI-driven |
 | MCP tool | Another agent calls `forgia_next_fd()` | Agent-to-agent orchestration |
 
-## 9. Project Board Sync
+## 9. Feedback Loop — From Code Back to Architecture
+
+The critical missing piece: after code is produced, lessons learned must flow **back** to DDD documents, influencing future FDs. Without this, the architecture diverges from reality.
+
+### The Gap (today)
+
+```
+DDD → FD → SDD → Code → Work Log → STOP
+                                     ↑ feedback dies here
+```
+
+### The Complete Loop
+
+```mermaid
+flowchart TD
+    SDD_Done["SDD Done\n(Work Log filled)"] --> Verify["/fd-verify\n(all SDDs pass)"]
+
+    Verify --> Close["/fd-close FD-a3f2"]
+
+    Close --> Feedback["/fd-feedback FD-a3f2\n(NEW SKILL)"]
+
+    Feedback --> C1["Update contexts/\n(actual interfaces\nvs planned)"]
+    Feedback --> C2["Update architecture/\n(new containers,\nrevised quality attrs)"]
+    Feedback --> C3["Update glossary\n(new terms introduced)"]
+    Feedback --> C4["Write learning record\n(.forgia/learnings/\nfailure modes, patterns)"]
+
+    C1 & C2 & C3 & C4 --> Review["/arch-review\n(coherence check\nafter updates)"]
+
+    Review --> NextFD["Next FD proposal\n(gate reads updated\narchitecture + learnings)"]
+
+    style Feedback fill:#fff3cd,stroke:#ffc107
+    style C4 fill:#f3e5f5,stroke:#9c27b0
+    style Review fill:#f8d7da,stroke:#dc3545
+```
+
+### What `/fd-feedback` does
+
+New skill that runs after `/fd-close`. Reads all Work Logs of the closed FD and routes feedback to the right documents:
+
+| Work Log content | Routes to | Example |
+|-----------------|-----------|---------|
+| Interface was different than planned | `contexts/<name>.yaml` interfaces section | "CheckRisk takes position + account, not just position" |
+| New container/service introduced | `architecture/containers.yaml` | "Added Redis cache for session state" |
+| Technology decision changed | `architecture/technology-decisions.yaml` | "Switched from gRPC to HTTP for internal — simpler debugging" |
+| Latency/performance measured | `architecture/quality-attributes.yaml` | "Actual p99: 85ms (planned: 100ms) — margin OK" |
+| New term introduced | `architecture/glossary.yaml` | "BridgeTimeout: max wait for MT5 bridge response" |
+| Failure mode discovered | `.forgia/learnings/<fd-id>.yaml` (NEW) | "gRPC streaming caused memory leak under load" |
+| Pattern that worked well | `.forgia/learnings/<fd-id>.yaml` | "Builder pattern for config was clean and testable" |
+| Suggestion for future FDs | `.forgia/learnings/<fd-id>.yaml` | "Add integration test template to SDD for DB-dependent features" |
+
+### Learnings directory (new)
+
+```
+.forgia/
+  learnings/                        ← NEW: persisted knowledge from execution
+    FD-a3f2.yaml                    ← learnings from FD-a3f2
+    FD-b7c1.yaml                    ← learnings from FD-b7c1
+```
+
+```yaml
+# .forgia/learnings/FD-a3f2.yaml
+fd: FD-a3f2
+title: "Scaffold ZeroClaw + Tauri"
+closed: "2026-03-20"
+
+failure_modes:
+  - pattern: "gRPC streaming"
+    context: "Internal service communication"
+    outcome: "Memory leak under sustained load"
+    recommendation: "Use HTTP for internal, gRPC only for external"
+
+successful_patterns:
+  - pattern: "Builder pattern for config"
+    context: "Multi-field struct initialization"
+    outcome: "Clean, testable, extensible"
+
+suggestions:
+  - "Add DB integration test template to SDD for features with persistence"
+  - "Include load test acceptance criterion for any streaming interface"
+
+interface_corrections:
+  - context: "trading-engine"
+    interface: "CheckRisk"
+    planned: "check_risk(position) → approved/rejected"
+    actual: "check_risk(position, account) → RiskResult{approved, reason, limits}"
+
+new_terms:
+  - term: "BridgeTimeout"
+    meaning: "Max wait for MT5 bridge response before circuit breaker trips"
+```
+
+### How the Gate Intelligente uses learnings
+
+When a new FD is proposed, the gate reads `.forgia/learnings/` (Tier 3 Cold Memory):
+
+```mermaid
+flowchart LR
+    NewFD["Proposed FD-c4d5\nuses gRPC streaming"] --> Gate["Gate Intelligente"]
+
+    Gate --> ReadLearnings["Read learnings/FD-a3f2.yaml"]
+
+    ReadLearnings --> Match["MATCH: failure_mode\n'gRPC streaming → memory leak'"]
+
+    Match --> Block["STOP: FD-a3f2 found that gRPC streaming\ncauses memory leaks. Consider HTTP instead.\nSee: .forgia/learnings/FD-a3f2.yaml"]
+
+    style Block fill:#f8d7da,stroke:#dc3545
+    style Match fill:#fff3cd,stroke:#ffc107
+```
+
+### Complete lifecycle with feedback
+
+```mermaid
+stateDiagram-v2
+    [*] --> Architecture: /arch-init
+
+    Architecture --> FD: /fd-new
+    FD --> SDD: /fd-sdd (after /fd-review)
+    SDD --> Code: forgia exec/watch/batch
+    Code --> Verify: /fd-verify
+    Verify --> Close: /fd-close
+
+    Close --> FeedbackSkill: /fd-feedback (NEW)
+
+    state "Feedback Routing" as FeedbackSkill {
+        [*] --> ReadWorkLogs: Read all SDD Work Logs
+        ReadWorkLogs --> RouteContexts: Update contexts/ (interfaces)
+        ReadWorkLogs --> RouteArch: Update architecture/ (containers, QA)
+        ReadWorkLogs --> RouteLearnings: Write learnings/ (failure modes, patterns)
+        RouteContexts --> ArchReview
+        RouteArch --> ArchReview
+        RouteLearnings --> ArchReview
+        ArchReview: /arch-review (coherence)
+    }
+
+    FeedbackSkill --> Architecture: updated DDD docs
+    Architecture --> FD: next FD (informed by learnings)
+```
+
+### Skill definition
+
+```
+/fd-feedback FD-a3f2
+```
+
+| Attribute | Value |
+|-----------|-------|
+| Category | `architecture` |
+| Mode | `both` (slash command + MCP tool `forgia_fd_feedback`) |
+| Triggers | After `/fd-close` (can be called manually or auto-triggered) |
+| Reads | All SDD Work Logs for the closed FD |
+| Writes | `contexts/`, `architecture/`, `learnings/` |
+| Then runs | `/arch-review` to verify coherence |
+
+### Auto-trigger on `/fd-close`
+
+`/fd-close` should call `/fd-feedback` automatically:
+
+```
+/fd-close FD-a3f2
+  1. Archive FD with retrospective
+  2. → /fd-feedback FD-a3f2 (auto-triggered)
+       a. Read Work Logs
+       b. Route to contexts/architecture/learnings
+       c. Run /arch-review
+  3. Update board card → "Closed"
+  4. Done
+```
+
+## 10. Project Board Sync
 
 ```mermaid
 sequenceDiagram
@@ -503,57 +675,93 @@ sequenceDiagram
     Forgia->>Board: update card with FD-c4d5 ID
 ```
 
-## 10. Skill Integration
+## 10. Skill System
 
-Skills are Claude Code slash commands that interact with the vault through the Go binary:
+A skill is any capability Forgia exposes — to humans (slash commands), to agents (MCP tools), or both. Three types:
 
 ```mermaid
-flowchart LR
-    subgraph skills ["Slash Commands"]
-        FDNew["/fd-new"]
-        FDDeep["/fd-deep"]
-        FDReview["/fd-review"]
-        FDSDD["/fd-sdd"]
-        FDVerify["/fd-verify"]
-        FDClose["/fd-close"]
-        ArchInit["/arch-init"]
-        ArchReview["/arch-review"]
-        ArchUpdate["/arch-update"]
-        Threat["/fd-threat-model"]
-        DryRun["/sdd-dry-run"]
+flowchart TD
+    subgraph types ["Skill Types"]
+        SC["SlashCommand\n(/fd-new, /fd-review)\nUser invokes explicitly"]
+        MT["MCPTool\n(forgia_blast_radius)\nAgent invokes directly"]
+        Both["Both\n(/arch-review + forgia_arch_review)\nSame Go logic, two entry points"]
     end
 
-    subgraph modes ["How they work"]
-        Direct["Direct: Claude reads .forgia/\nand executes instructions\n(current — slash command .md files)"]
-        MCP_Mode["MCP: Claude calls forgia tools\n(future — Go binary handles logic)"]
+    subgraph impl ["Implementation"]
+        Native["Native Skill\nGo logic in internal/"]
+        Composite["Composite Skill\nWraps external MCP provider\n+ adds Forgia logic"]
     end
 
-    skills --> Direct
-    skills -.->|"post Go rewrite"| MCP_Mode
+    SC --> Native
+    MT --> Native
+    MT --> Composite
+    Both --> Native
 
-    style skills fill:#fff3cd,stroke:#ffc107
-    style MCP_Mode fill:#d4edda,stroke:#28a745
+    subgraph providers ["Composite sources"]
+        CM["codebase-memory-mcp\nsearch_graph, detect_changes,\ntrace_call_path, get_architecture"]
+    end
+
+    Composite --> providers
+
+    style SC fill:#fff3cd,stroke:#ffc107
+    style MT fill:#cce5ff,stroke:#0d6efd
+    style Both fill:#d4edda,stroke:#28a745
+    style Composite fill:#f3e5f5,stroke:#9c27b0
 ```
 
-**Current (bash era)**: Skills are `.md` files with instructions. Claude reads them and executes using its own tools (Read, Write, Bash).
+### Skill Registry
 
-**Future (Go era)**: Skills call MCP tools (`forgia_fd_new`, `forgia_arch_review`). Logic is in Go, Claude just orchestrates.
+All skills register in a central `skill.Registry`. The MCP server and slash command installer both read from it:
 
-### Skill → Feature mapping
+```
+skill.Registry
+  ├── SlashCommands() → list of .md files to install
+  ├── MCPTools()      → list of MCP tool definitions to advertise
+  └── Get(name)       → execute skill logic
+```
 
-| Skill | Feature Issues | MCP Tool (future) |
-|-------|---------------|-------------------|
-| `/fd-new` | #30 (multi-eng), #29 (competitive) | `forgia_fd_new` |
-| `/fd-deep` | — (exists, 4 parallel agents) | `forgia_fd_deep` |
-| `/fd-review` | #18 (compliance scoring) | `forgia_fd_review` |
-| `/fd-sdd` | #35 (board sync) | `forgia_fd_sdd` |
-| `/fd-verify` | #17 (post-exec scan) | `forgia_fd_verify` |
-| `/fd-close` | #29 (reject) | `forgia_fd_close` |
-| `/arch-init` | #27 (DDD), #36 (codebase-memory) | `forgia_arch_init` |
-| `/arch-review` | #22, #36 | `forgia_arch_review` |
-| `/arch-update` | #27 | `forgia_arch_update` |
-| `/fd-threat-model` | #21 | `forgia_threat_model` |
-| `/sdd-dry-run` | #23, #36 | `forgia_dry_run` |
+### Slash Command Skills (user-facing)
+
+| Skill | Category | Mode | Issue |
+|-------|----------|------|-------|
+| `/fd-new` | fd | both | #29, #30 |
+| `/fd-deep` | fd | slash_command | — |
+| `/fd-review` | fd | both | #18 |
+| `/fd-sdd` | fd | both | #35 |
+| `/fd-verify` | fd | both | #17 |
+| `/fd-close` | fd | both | #29 |
+| `/fd-feedback` | architecture | both | #27 (feedback loop) |
+| `/fd-status` | fd | both | — |
+| `/arch-init` | architecture | both | #27 |
+| `/arch-review` | architecture | both | #27 |
+| `/arch-update` | architecture | both | #27 |
+| `/fd-threat-model` | design | both | #21 |
+| `/fd-arch-review` | design | both | #22 |
+| `/sdd-dry-run` | design | both | #23 |
+
+### Composite Skills (codebase-memory-mcp derived)
+
+These wrap external MCP provider tools with Forgia logic (guardrails check, context enrichment):
+
+| Skill | Provider Tool | Forgia adds | Used by |
+|-------|--------------|-------------|---------|
+| `forgia_search_code` | `search_graph` | Guardrails filter on results | Agent search |
+| `forgia_blast_radius` | `detect_changes` | Cross-check with bounded contexts | Gate intelligente |
+| `forgia_trace_calls` | `trace_call_path` | Validate context interface contracts | `/arch-review` |
+| `forgia_architecture` | `get_architecture` | Merge with existing architecture/ | `/arch-init` |
+| `forgia_dead_code` | `search_graph(dead_code)` | Filter by SDD scope | Cleanup |
+| `forgia_reindex` | `index_repository` | Trigger after exec | Post-exec |
+
+### Skill evolution
+
+```
+Today (bash):       .md file → Claude interprets → Read/Write/Bash
+Transition:         .md file → Claude calls forgia CLI → Go logic
+Future (MCP):       .md thin wrapper → forgia_tool() MCP call → Go logic
+                    Agent can also call MCP tool directly (no .md needed)
+```
+
+Slash commands stay for **explicit UX** and **context savings**. MCP tools exist for **agent-to-agent** calls.
 
 ## 11. Configuration Hierarchy
 
