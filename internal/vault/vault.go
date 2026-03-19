@@ -52,13 +52,6 @@ type Vault interface {
 	Render(ctx context.Context, yamlPath string) error
 }
 
-// Open opens an existing .forgia/ vault at the given directory.
-// Returns an error if the vault doesn't exist — use Init to create one.
-func Open(dir string) (Vault, error) {
-	// TODO: implement — verify .forgia/ exists, return concrete implementation
-	return nil, fmt.Errorf("vault.Open: not yet implemented")
-}
-
 // InitOptions configures vault scaffolding.
 type InitOptions struct {
 	ProjectName string
