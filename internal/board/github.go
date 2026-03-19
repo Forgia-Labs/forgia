@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// Compile-time interface satisfaction checks.
+var (
+	_ ProjectBoard = (*GitHubBoard)(nil)
+	_ ProjectBoard = (*LocalBoard)(nil)
+)
+
 // GitHubBoard implements ProjectBoard using GitHub Projects V2 GraphQL API via gh CLI.
 type GitHubBoard struct {
 	projectID     string            // GraphQL node ID (e.g., "PVT_kwHOADx1884BSGiC")

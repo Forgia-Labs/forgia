@@ -10,6 +10,12 @@ import (
 	"github.com/Deepzima/forgia/internal/vault"
 )
 
+// Compile-time interface satisfaction checks.
+var (
+	_ board.VaultReader = (*VaultAdapter)(nil)
+	_ board.VaultWriter = (*VaultAdapter)(nil)
+)
+
 // VaultAdapter implements board.VaultReader and board.VaultWriter using a vault.Vault.
 type VaultAdapter struct {
 	vault vault.Vault
