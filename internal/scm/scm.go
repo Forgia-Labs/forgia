@@ -2,7 +2,10 @@
 // (GitHub via gh CLI, GitLab via glab CLI).
 package scm
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // SCM abstracts source control operations.
 type SCM interface {
@@ -33,5 +36,5 @@ type Issue struct {
 // Resolve detects the SCM backend from the current git remote.
 func Resolve(ctx context.Context) (SCM, error) {
 	// TODO: detect github.com vs gitlab.com from git remote URL
-	return nil, nil
+	return nil, fmt.Errorf("scm.Resolve: not yet implemented")
 }

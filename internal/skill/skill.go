@@ -111,7 +111,7 @@ func (s *CompositeSkill) Execute(ctx context.Context, params map[string]any) (an
 	}
 
 	// Call underlying provider.
-	result, err := s.registry.Call(ctx, "forgia_"+s.ProviderName+"_"+s.ProviderTool, params)
+	result, err := s.registry.Call(ctx, mcp.ToolName(s.ProviderName, s.ProviderTool), params)
 	if err != nil {
 		return nil, err
 	}

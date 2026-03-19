@@ -4,6 +4,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Deepzima/forgia/internal/vault"
@@ -56,5 +57,5 @@ type ExecResult struct {
 // Resolve picks the right runner from config.
 func Resolve(runnerName string) (Runner, error) {
 	// TODO: implement runner resolution
-	return nil, nil
+	return nil, fmt.Errorf("runner.Resolve(%q): not yet implemented", runnerName)
 }

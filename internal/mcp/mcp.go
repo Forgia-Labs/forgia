@@ -67,7 +67,7 @@ func (r *ProviderRegistry) AllTools() []ToolDefinition {
 	var tools []ToolDefinition
 	for _, p := range r.providers {
 		for _, t := range p.Tools() {
-			t.Name = "forgia_" + t.Namespace + "_" + t.Name
+			t.Name = ToolName(t.Namespace, t.Name)
 			tools = append(tools, t)
 		}
 	}
@@ -91,6 +91,12 @@ func (r *ProviderRegistry) Call(ctx context.Context, tool string, params map[str
 	}
 
 	return p.Call(ctx, toolName, params)
+}
+
+// ToolName builds a namespaced tool name: ToolName("code", "search_graph") → "forgia_code_search_graph".
+// Single source of truth for the naming convention — used by ProviderRegistry and CompositeSkill.
+func ToolName(namespace, tool string) string {
+	return "forgia_" + namespace + "_" + tool
 }
 
 // parseNamespacedTool splits "forgia_code_search_graph" → ("code", "search_graph").

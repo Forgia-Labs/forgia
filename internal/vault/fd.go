@@ -37,6 +37,11 @@ type FD struct {
 	RejectedReason string   `yaml:"rejected_reason,omitempty"`
 	SupersededBy   string   `yaml:"superseded_by,omitempty"`
 
+	// Execution tracking.
+	ExecProfile *ExecProfile `yaml:"exec_profile,omitempty"`
+	DesignedBy  *DesignedBy  `yaml:"designed_by,omitempty"`
+	ExecutedBy  *ExecutedBy  `yaml:"executed_by,omitempty"`
+
 	// Internal — not serialized.
 	FilePath string `yaml:"-"`
 }

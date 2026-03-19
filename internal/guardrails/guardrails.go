@@ -23,8 +23,9 @@ type Violation struct {
 	Target  string // the file or command that violated
 }
 
-// CheckFiles returns violations for files that match [write] or [read] patterns.
-func (g *Guardrails) CheckFiles(ctx context.Context, files []string) []Violation {
+// CheckFilePaths returns violations for file paths that match [write] or [read] glob patterns.
+// This checks paths only — use ScanForSecrets to check file contents.
+func (g *Guardrails) CheckFilePaths(ctx context.Context, paths []string) []Violation {
 	// TODO: implement glob matching
 	return nil
 }

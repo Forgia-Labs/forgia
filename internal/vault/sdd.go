@@ -14,6 +14,7 @@ const (
 	SDDInProgress SDDStatus = "in-progress"
 	SDDDone       SDDStatus = "done"
 	SDDFailed     SDDStatus = "failed"
+	SDDCancelled  SDDStatus = "cancelled"
 )
 
 // SDD represents a Spec-Driven Development execution spec.
@@ -31,7 +32,7 @@ type SDD struct {
 	BdTaskID   string    `yaml:"bd_task_id,omitempty"`
 	Complexity string    `yaml:"complexity,omitempty"` // low, medium, high → model routing
 
-	Scope       string           `yaml:"scope"`
+	Scope       string           `yaml:"scope"` // Free-form markdown — not parsed, passed to agent as-is
 	Interfaces  []SDDInterface   `yaml:"interfaces,omitempty"`
 	Constraints SDDConstraints   `yaml:"constraints"`
 	Boundaries  SDDBoundaries    `yaml:"boundaries,omitempty"`

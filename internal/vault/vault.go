@@ -7,10 +7,20 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"iter"
+	"strconv"
+	"sync/atomic"
 	"time"
 )
 
+// idCounter ensures unique IDs even when called in the same nanosecond.
+var idCounter atomic.Uint64
+
 // Vault manages the .forgia/ directory structure.
+//
+// This interface is intentionally large (17 methods) because almost all callers
+// (CLI commands, MCP server) need both read and write access. Splitting into
+// VaultReader/VaultWriter is deferred until implementation reveals actual usage
+// patterns — then we refactor based on real data, not speculation.
 type Vault interface {
 	// Init scaffolds .forgia/ in the current project.
 	Init(ctx context.Context, opts InitOptions) error
@@ -59,6 +69,7 @@ type InitOptions struct {
 // This is the FALLBACK for offline use. When a ProjectBoard is available,
 // use board.NextID() instead — the board is the central ID authority (#35).
 func NewFDID(title, author string) string {
-	h := sha256.Sum256([]byte(title + time.Now().String() + author))
+	n := idCounter.Add(1)
+	h := sha256.Sum256([]byte(title + time.Now().String() + author + strconv.FormatUint(n, 10)))
 	return fmt.Sprintf("FD-%x", h[:2])
 }

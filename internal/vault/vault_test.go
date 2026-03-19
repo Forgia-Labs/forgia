@@ -37,7 +37,7 @@ func TestFDStatusConstants(t *testing.T) {
 
 func TestSDDStatusConstants(t *testing.T) {
 	statuses := []SDDStatus{
-		SDDPlanned, SDDValidated, SDDInProgress, SDDDone, SDDFailed,
+		SDDPlanned, SDDValidated, SDDInProgress, SDDDone, SDDFailed, SDDCancelled,
 	}
 	for _, s := range statuses {
 		if s == "" {
