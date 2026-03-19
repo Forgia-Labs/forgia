@@ -154,6 +154,10 @@ stateDiagram-v2
 │   ├── lang/                        ← per-language conventions (auto-detected)
 │   └── *.md                         ← coding, commit, review conventions
 │
+├── learnings/                       ← feedback from closed FDs (committed)
+│   ├── FD-<hash>.yaml               ← failure modes, successful patterns, suggestions
+│   └── ...
+│
 ├── logs/                            ← gitignored
 │   ├── exec-<sdd>-<timestamp>.json  ← execution reports
 │   └── exec-<sdd>-<timestamp>.log   ← execution logs
@@ -443,7 +447,175 @@ Everything else is autonomous.
 | GitHub Action | On schedule or on issue label `forgia:fd` | CI-driven |
 | MCP tool | Another agent calls `forgia_next_fd()` | Agent-to-agent orchestration |
 
-## 9. Project Board Sync
+## 9. Feedback Loop — From Code Back to Architecture
+
+The critical missing piece: after code is produced, lessons learned must flow **back** to DDD documents, influencing future FDs. Without this, the architecture diverges from reality.
+
+### The Gap (today)
+
+```
+DDD → FD → SDD → Code → Work Log → STOP
+                                     ↑ feedback dies here
+```
+
+### The Complete Loop
+
+```mermaid
+flowchart TD
+    SDD_Done["SDD Done\n(Work Log filled)"] --> Verify["/fd-verify\n(all SDDs pass)"]
+
+    Verify --> Close["/fd-close FD-a3f2"]
+
+    Close --> Feedback["/fd-feedback FD-a3f2\n(NEW SKILL)"]
+
+    Feedback --> C1["Update contexts/\n(actual interfaces\nvs planned)"]
+    Feedback --> C2["Update architecture/\n(new containers,\nrevised quality attrs)"]
+    Feedback --> C3["Update glossary\n(new terms introduced)"]
+    Feedback --> C4["Write learning record\n(.forgia/learnings/\nfailure modes, patterns)"]
+
+    C1 & C2 & C3 & C4 --> Review["/arch-review\n(coherence check\nafter updates)"]
+
+    Review --> NextFD["Next FD proposal\n(gate reads updated\narchitecture + learnings)"]
+
+    style Feedback fill:#fff3cd,stroke:#ffc107
+    style C4 fill:#f3e5f5,stroke:#9c27b0
+    style Review fill:#f8d7da,stroke:#dc3545
+```
+
+### What `/fd-feedback` does
+
+New skill that runs after `/fd-close`. Reads all Work Logs of the closed FD and routes feedback to the right documents:
+
+| Work Log content | Routes to | Example |
+|-----------------|-----------|---------|
+| Interface was different than planned | `contexts/<name>.yaml` interfaces section | "CheckRisk takes position + account, not just position" |
+| New container/service introduced | `architecture/containers.yaml` | "Added Redis cache for session state" |
+| Technology decision changed | `architecture/technology-decisions.yaml` | "Switched from gRPC to HTTP for internal — simpler debugging" |
+| Latency/performance measured | `architecture/quality-attributes.yaml` | "Actual p99: 85ms (planned: 100ms) — margin OK" |
+| New term introduced | `architecture/glossary.yaml` | "BridgeTimeout: max wait for MT5 bridge response" |
+| Failure mode discovered | `.forgia/learnings/<fd-id>.yaml` (NEW) | "gRPC streaming caused memory leak under load" |
+| Pattern that worked well | `.forgia/learnings/<fd-id>.yaml` | "Builder pattern for config was clean and testable" |
+| Suggestion for future FDs | `.forgia/learnings/<fd-id>.yaml` | "Add integration test template to SDD for DB-dependent features" |
+
+### Learnings directory (new)
+
+```
+.forgia/
+  learnings/                        ← NEW: persisted knowledge from execution
+    FD-a3f2.yaml                    ← learnings from FD-a3f2
+    FD-b7c1.yaml                    ← learnings from FD-b7c1
+```
+
+```yaml
+# .forgia/learnings/FD-a3f2.yaml
+fd: FD-a3f2
+title: "Scaffold ZeroClaw + Tauri"
+closed: "2026-03-20"
+
+failure_modes:
+  - pattern: "gRPC streaming"
+    context: "Internal service communication"
+    outcome: "Memory leak under sustained load"
+    recommendation: "Use HTTP for internal, gRPC only for external"
+
+successful_patterns:
+  - pattern: "Builder pattern for config"
+    context: "Multi-field struct initialization"
+    outcome: "Clean, testable, extensible"
+
+suggestions:
+  - "Add DB integration test template to SDD for features with persistence"
+  - "Include load test acceptance criterion for any streaming interface"
+
+interface_corrections:
+  - context: "trading-engine"
+    interface: "CheckRisk"
+    planned: "check_risk(position) → approved/rejected"
+    actual: "check_risk(position, account) → RiskResult{approved, reason, limits}"
+
+new_terms:
+  - term: "BridgeTimeout"
+    meaning: "Max wait for MT5 bridge response before circuit breaker trips"
+```
+
+### How the Gate Intelligente uses learnings
+
+When a new FD is proposed, the gate reads `.forgia/learnings/` (Tier 3 Cold Memory):
+
+```mermaid
+flowchart LR
+    NewFD["Proposed FD-c4d5\nuses gRPC streaming"] --> Gate["Gate Intelligente"]
+
+    Gate --> ReadLearnings["Read learnings/FD-a3f2.yaml"]
+
+    ReadLearnings --> Match["MATCH: failure_mode\n'gRPC streaming → memory leak'"]
+
+    Match --> Block["STOP: FD-a3f2 found that gRPC streaming\ncauses memory leaks. Consider HTTP instead.\nSee: .forgia/learnings/FD-a3f2.yaml"]
+
+    style Block fill:#f8d7da,stroke:#dc3545
+    style Match fill:#fff3cd,stroke:#ffc107
+```
+
+### Complete lifecycle with feedback
+
+```mermaid
+stateDiagram-v2
+    [*] --> Architecture: /arch-init
+
+    Architecture --> FD: /fd-new
+    FD --> SDD: /fd-sdd (after /fd-review)
+    SDD --> Code: forgia exec/watch/batch
+    Code --> Verify: /fd-verify
+    Verify --> Close: /fd-close
+
+    Close --> FeedbackSkill: /fd-feedback (NEW)
+
+    state "Feedback Routing" as FeedbackSkill {
+        [*] --> ReadWorkLogs: Read all SDD Work Logs
+        ReadWorkLogs --> RouteContexts: Update contexts/ (interfaces)
+        ReadWorkLogs --> RouteArch: Update architecture/ (containers, QA)
+        ReadWorkLogs --> RouteLearnings: Write learnings/ (failure modes, patterns)
+        RouteContexts --> ArchReview
+        RouteArch --> ArchReview
+        RouteLearnings --> ArchReview
+        ArchReview: /arch-review (coherence)
+    }
+
+    FeedbackSkill --> Architecture: updated DDD docs
+    Architecture --> FD: next FD (informed by learnings)
+```
+
+### Skill definition
+
+```
+/fd-feedback FD-a3f2
+```
+
+| Attribute | Value |
+|-----------|-------|
+| Category | `architecture` |
+| Mode | `both` (slash command + MCP tool `forgia_fd_feedback`) |
+| Triggers | After `/fd-close` (can be called manually or auto-triggered) |
+| Reads | All SDD Work Logs for the closed FD |
+| Writes | `contexts/`, `architecture/`, `learnings/` |
+| Then runs | `/arch-review` to verify coherence |
+
+### Auto-trigger on `/fd-close`
+
+`/fd-close` should call `/fd-feedback` automatically:
+
+```
+/fd-close FD-a3f2
+  1. Archive FD with retrospective
+  2. → /fd-feedback FD-a3f2 (auto-triggered)
+       a. Read Work Logs
+       b. Route to contexts/architecture/learnings
+       c. Run /arch-review
+  3. Update board card → "Closed"
+  4. Done
+```
+
+## 10. Project Board Sync
 
 ```mermaid
 sequenceDiagram
@@ -558,6 +730,7 @@ skill.Registry
 | `/fd-sdd` | fd | both | #35 |
 | `/fd-verify` | fd | both | #17 |
 | `/fd-close` | fd | both | #29 |
+| `/fd-feedback` | architecture | both | #27 (feedback loop) |
 | `/fd-status` | fd | both | — |
 | `/arch-init` | architecture | both | #27 |
 | `/arch-review` | architecture | both | #27 |
