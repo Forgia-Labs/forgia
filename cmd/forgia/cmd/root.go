@@ -5,9 +5,11 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "forgia",
-	Short: "Spec-driven development framework",
-	Long:  "Forgia — spec-driven development framework. Forge specs into code.",
+	Use:           "forgia",
+	Short:         "Spec-driven development framework",
+	Long:          "Forgia — spec-driven development framework. Forge specs into code.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 // Execute runs the root command.
