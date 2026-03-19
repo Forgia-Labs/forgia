@@ -18,6 +18,9 @@ type GitHubBoard struct {
 	statusFieldID string
 	statusOptions map[string]string // status name → option ID
 
+	vaultReader VaultReader // optional — nil means sync disabled
+	vaultWriter VaultWriter // optional — nil means sync disabled
+
 	logger *slog.Logger
 }
 
@@ -34,6 +37,13 @@ func NewGitHubBoard(ctx context.Context, owner string, number int) (*GitHubBoard
 	}
 
 	return b, nil
+}
+
+// SetVault injects vault adapters for sync operations.
+// Both reader and writer must be set for sync to work.
+func (b *GitHubBoard) SetVault(reader VaultReader, writer VaultWriter) {
+	b.vaultReader = reader
+	b.vaultWriter = writer
 }
 
 // resolveProject fetches the project ID and status field options.
@@ -249,15 +259,92 @@ func (b *GitHubBoard) GetCards(ctx context.Context, filter CardFilter) ([]BoardI
 }
 
 // SyncFromVault pushes local .forgia/ state to the board.
+// Requires SetVault() to have been called with a non-nil VaultReader.
 func (b *GitHubBoard) SyncFromVault(ctx context.Context) error {
-	// TODO: read vault FDs/SDDs, create/update cards
-	return fmt.Errorf("SyncFromVault: not yet implemented")
+	if b.vaultReader == nil {
+		return fmt.Errorf("SyncFromVault: vault reader not configured (call SetVault first)")
+	}
+
+	vaultItems, err := b.vaultReader.AllItems(ctx)
+	if err != nil {
+		return fmt.Errorf("read vault items: %w", err)
+	}
+
+	boardCards, err := b.GetCards(ctx, CardFilter{})
+	if err != nil {
+		return fmt.Errorf("read board cards: %w", err)
+	}
+
+	// Index existing cards by title prefix (e.g., "FD-a3f2 Feature Name" → "FD-a3f2").
+	existing := make(map[string]BoardItem, len(boardCards))
+	for _, card := range boardCards {
+		id := extractIDFromTitle(card.Title)
+		if id != "" {
+			existing[id] = card
+		}
+	}
+
+	var created, moved int
+	for _, item := range vaultItems {
+		card, found := existing[item.ID]
+		if !found {
+			// New item — create card.
+			item.Title = item.ID + " " + item.Title
+			if _, err := b.CreateCard(ctx, item); err != nil {
+				b.logger.WarnContext(ctx, "sync: failed to create card",
+					"id", item.ID, "error", err)
+				continue
+			}
+			created++
+			continue
+		}
+
+		// Existing card — check if status changed.
+		if item.Column != "" && item.Column != card.Column {
+			if err := b.MoveCard(ctx, card.ID, item.Column); err != nil {
+				b.logger.WarnContext(ctx, "sync: failed to move card",
+					"id", item.ID, "from", card.Column, "to", item.Column, "error", err)
+				continue
+			}
+			moved++
+		}
+	}
+
+	b.logger.InfoContext(ctx, "SyncFromVault complete",
+		"vault_items", len(vaultItems), "created", created, "moved", moved)
+	return nil
 }
 
 // SyncToVault pulls board state to local .forgia/ files.
+// Requires SetVault() to have been called with a non-nil VaultWriter.
 func (b *GitHubBoard) SyncToVault(ctx context.Context) error {
-	// TODO: read cards, update vault frontmatter
-	return fmt.Errorf("SyncToVault: not yet implemented")
+	if b.vaultWriter == nil {
+		return fmt.Errorf("SyncToVault: vault writer not configured (call SetVault first)")
+	}
+
+	boardCards, err := b.GetCards(ctx, CardFilter{})
+	if err != nil {
+		return fmt.Errorf("read board cards: %w", err)
+	}
+
+	var updated int
+	for _, card := range boardCards {
+		id := extractIDFromTitle(card.Title)
+		if id == "" || card.Column == "" {
+			continue
+		}
+
+		if err := b.vaultWriter.UpdateStatus(ctx, id, card.Column); err != nil {
+			b.logger.WarnContext(ctx, "sync: failed to update vault item",
+				"id", id, "status", card.Column, "error", err)
+			continue
+		}
+		updated++
+	}
+
+	b.logger.InfoContext(ctx, "SyncToVault complete",
+		"board_cards", len(boardCards), "updated", updated)
+	return nil
 }
 
 // graphql executes a GraphQL query via gh CLI with context cancellation.
@@ -287,6 +374,20 @@ func (b *GitHubBoard) statusOptionNames() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// extractIDFromTitle parses a Forgia ID from a card title.
+// Expects format "FD-xxxx Title" or "SDD-xxxx Title".
+func extractIDFromTitle(title string) string {
+	parts := strings.SplitN(title, " ", 2)
+	if len(parts) == 0 {
+		return ""
+	}
+	prefix := parts[0]
+	if strings.HasPrefix(prefix, "FD-") || strings.HasPrefix(prefix, "SDD-") {
+		return prefix
+	}
+	return ""
 }
 
 // jsonPath navigates a nested map by keys.
