@@ -2,7 +2,14 @@
 // Loads config.toml (team) + config.local.toml (personal override).
 package config
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	toml "github.com/pelletier/go-toml/v2"
+)
 
 // Config is the root configuration structure.
 type Config struct {
@@ -117,10 +124,32 @@ type DockerConfig struct {
 
 // LoadConfig reads config.toml + config.local.toml with merge.
 // Priority: CLI flags > env vars > config.local.toml > config.toml > defaults.
-func LoadConfig(ctx context.Context, vaultDir string) (*Config, error) {
-	// TODO: implement TOML loading + merge
-	_ = ctx // will be used for cancellation during file reads
-	return DefaultConfig(), nil
+func LoadConfig(_ context.Context, vaultDir string) (*Config, error) {
+	cfg := DefaultConfig()
+
+	// Load team config.
+	teamPath := filepath.Join(vaultDir, "config.toml")
+	if err := loadTOMLInto(teamPath, cfg); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("load %s: %w", teamPath, err)
+	}
+
+	// Load personal override (not committed to git).
+	localPath := filepath.Join(vaultDir, "config.local.toml")
+	if err := loadTOMLInto(localPath, cfg); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("load %s: %w", localPath, err)
+	}
+
+	return cfg, nil
+}
+
+// loadTOMLInto reads a TOML file and decodes it into dst.
+// Returns os.ErrNotExist if the file doesn't exist (caller decides if that's ok).
+func loadTOMLInto(path string, dst any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return toml.Unmarshal(data, dst)
 }
 
 // DefaultConfig returns sensible defaults.

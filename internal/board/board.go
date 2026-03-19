@@ -40,3 +40,17 @@ type CardFilter struct {
 	Assignee string
 	Label    string
 }
+
+// VaultReader provides vault items as board items for sync.
+// Implemented by the vault adapter — board never imports vault types.
+type VaultReader interface {
+	// AllItems returns all FDs and SDDs mapped to BoardItems.
+	AllItems(ctx context.Context) ([]BoardItem, error)
+}
+
+// VaultWriter updates vault files from board state.
+// Implemented by the vault adapter — board never imports vault types.
+type VaultWriter interface {
+	// UpdateStatus updates a vault item's status by ID.
+	UpdateStatus(ctx context.Context, id, status string) error
+}
