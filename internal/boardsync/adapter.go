@@ -35,6 +35,15 @@ func (a *VaultAdapter) AllItems(ctx context.Context) ([]board.BoardItem, error) 
 
 	var items []board.BoardItem
 	for _, fd := range fds {
+		fields := map[string]string{}
+		if fd.UpstreamIssue != "" {
+			fields["upstream_issue"] = fd.UpstreamIssue
+		}
+		// Competitive FD linking — store competes_with as comma-separated field.
+		if len(fd.CompetesWith) > 0 {
+			fields["competes_with"] = joinStrings(fd.CompetesWith)
+		}
+
 		items = append(items, board.BoardItem{
 			ID:       fd.ID,
 			Title:    fd.Title,
@@ -42,6 +51,7 @@ func (a *VaultAdapter) AllItems(ctx context.Context) ([]board.BoardItem, error) 
 			Assignee: fd.Author,
 			Priority: fd.Priority,
 			Labels:   fd.Tags,
+			Fields:   fields,
 		})
 
 		// Include SDDs under this FD.
@@ -64,7 +74,42 @@ func (a *VaultAdapter) AllItems(ctx context.Context) ([]board.BoardItem, error) 
 		}
 	}
 
+	// Include architecture bounded contexts.
+	contexts, err := a.vault.ListContexts(ctx)
+	if err == nil && len(contexts) > 0 {
+		for _, bc := range contexts {
+			column := "planned"
+			if bc.Status.FDCompleted {
+				column = "complete"
+			} else if bc.Status.FDCreated {
+				column = "in-progress"
+			}
+			items = append(items, board.BoardItem{
+				ID:     "CTX-" + bc.Name,
+				Title:  bc.Name,
+				Column: column,
+				Labels: []string{"architecture", "bounded-context"},
+				Fields: map[string]string{
+					"type":        "bounded-context",
+					"description": bc.Description,
+				},
+			})
+		}
+	}
+
 	return items, nil
+}
+
+// joinStrings joins a slice with commas.
+func joinStrings(ss []string) string {
+	result := ""
+	for i, s := range ss {
+		if i > 0 {
+			result += ","
+		}
+		result += s
+	}
+	return result
 }
 
 // UpdateStatus updates a vault item's status by ID.
