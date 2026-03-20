@@ -5,6 +5,7 @@ package boardsync
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/Deepzima/forgia/internal/board"
 	"github.com/Deepzima/forgia/internal/vault"
@@ -57,6 +58,7 @@ func (a *VaultAdapter) AllItems(ctx context.Context) ([]board.BoardItem, error) 
 		// Include SDDs under this FD.
 		sdds, err := a.vault.ListSDDs(ctx, fd.ID)
 		if err != nil {
+			slog.Warn("skip SDDs during sync", "fd", fd.ID, "error", err)
 			continue
 		}
 		for _, sdd := range sdds {
@@ -76,25 +78,27 @@ func (a *VaultAdapter) AllItems(ctx context.Context) ([]board.BoardItem, error) 
 
 	// Include architecture bounded contexts.
 	contexts, err := a.vault.ListContexts(ctx)
-	if err == nil && len(contexts) > 0 {
-		for _, bc := range contexts {
-			column := "planned"
-			if bc.Status.FDCompleted {
-				column = "complete"
-			} else if bc.Status.FDCreated {
-				column = "in-progress"
-			}
-			items = append(items, board.BoardItem{
-				ID:     "CTX-" + bc.Name,
-				Title:  bc.Name,
-				Column: column,
-				Labels: []string{"architecture", "bounded-context"},
-				Fields: map[string]string{
-					"type":        "bounded-context",
-					"description": bc.Description,
-				},
-			})
+	if err != nil {
+		slog.Warn("skip bounded contexts during sync", "error", err)
+		return items, nil
+	}
+	for _, bc := range contexts {
+		column := "planned"
+		if bc.Status.FDCompleted {
+			column = "complete"
+		} else if bc.Status.FDCreated {
+			column = "in-progress"
 		}
+		items = append(items, board.BoardItem{
+			ID:     "CTX-" + bc.Name,
+			Title:  bc.Name,
+			Column: column,
+			Labels: []string{"architecture", "bounded-context"},
+			Fields: map[string]string{
+				"type":        "bounded-context",
+				"description": bc.Description,
+			},
+		})
 	}
 
 	return items, nil
