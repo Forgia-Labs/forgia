@@ -19,6 +19,11 @@ type FileVault struct {
 	logger *slog.Logger
 }
 
+// Dir returns the absolute path to the .forgia/ directory.
+func (v *FileVault) Dir() string {
+	return v.dir
+}
+
 // Open opens an existing .forgia/ vault at the given directory.
 // Returns an error if the vault doesn't exist — use InitVault to create one.
 func Open(dir string) (Vault, error) {

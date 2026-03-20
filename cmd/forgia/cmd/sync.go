@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -21,9 +22,12 @@ var syncCmd = &cobra.Command{
 	Short: "Sync FD/SDD status between vault and project board",
 	Long: `Bidirectional sync between .forgia/ files and the project board (GitHub Projects).
 
-  forgia sync          # push + pull (default)
-  forgia sync --push   # vault → board only
-  forgia sync --pull   # board → vault only`,
+  forgia sync                  # push + pull (default, both directions)
+  forgia sync --push           # vault → board only (upload local changes)
+  forgia sync --pull           # board → vault only (download board changes)
+  forgia sync --direction=push # same as --push (long form)
+
+Requires [board] section in .forgia/config.toml with provider, owner, and project number.`,
 	RunE: runSync,
 }
 
@@ -36,6 +40,7 @@ func init() {
 
 func runSync(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
+	logger := slog.With("command", "sync")
 
 	// Find vault.
 	dir, err := os.Getwd()
@@ -44,15 +49,23 @@ func runSync(cmd *cobra.Command, _ []string) error {
 	}
 	v, err := vault.Open(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("open vault at %s: %w", dir, err)
 	}
 
-	// Load config.
-	forgiaDir := dir + "/.forgia"
-	cfg, err := config.LoadConfig(ctx, forgiaDir)
+	// Load config from vault directory.
+	cfg, err := config.LoadConfig(ctx, v.Dir())
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+
+	// Validate board config.
+	if cfg.Board.Provider == "" {
+		return fmt.Errorf("board provider not configured in .forgia/config.toml (set [board] provider)")
+	}
+	logger.Info("resolving board",
+		"provider", cfg.Board.Provider,
+		"owner", cfg.Board.GitHub.Owner,
+		"project", cfg.Board.GitHub.ProjectNumber)
 
 	// Resolve board.
 	b, err := board.Resolve(ctx,
@@ -61,18 +74,26 @@ func runSync(cmd *cobra.Command, _ []string) error {
 		cfg.Board.GitHub.ProjectNumber,
 	)
 	if err != nil {
-		return fmt.Errorf("resolve board: %w", err)
+		return fmt.Errorf("resolve %s board: %w", cfg.Board.Provider, err)
 	}
 
 	// Wire adapter.
 	adapter := boardsync.NewVaultAdapter(v)
 	if gb, ok := b.(*board.GitHubBoard); ok {
 		gb.SetVault(adapter, adapter)
+	} else {
+		logger.Warn("board type does not support vault sync via adapter", "type", fmt.Sprintf("%T", b))
 	}
 
 	// Determine direction.
-	push, _ := cmd.Flags().GetBool("push")
-	pull, _ := cmd.Flags().GetBool("pull")
+	push, err := cmd.Flags().GetBool("push")
+	if err != nil {
+		return fmt.Errorf("parse --push flag: %w", err)
+	}
+	pull, err := cmd.Flags().GetBool("pull")
+	if err != nil {
+		return fmt.Errorf("parse --pull flag: %w", err)
+	}
 	if syncDirection == "push" {
 		push = true
 	}
@@ -86,19 +107,19 @@ func runSync(cmd *cobra.Command, _ []string) error {
 	}
 
 	if push {
-		fmt.Fprintln(cmd.OutOrStdout(), "Syncing vault → board...")
+		logger.Info("syncing vault → board")
 		if err := b.SyncFromVault(ctx); err != nil {
 			return fmt.Errorf("push sync: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Push complete.")
+		logger.Info("push complete")
 	}
 
 	if pull {
-		fmt.Fprintln(cmd.OutOrStdout(), "Syncing board → vault...")
+		logger.Info("syncing board → vault")
 		if err := b.SyncToVault(ctx); err != nil {
 			return fmt.Errorf("pull sync: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Pull complete.")
+		logger.Info("pull complete")
 	}
 
 	return nil
