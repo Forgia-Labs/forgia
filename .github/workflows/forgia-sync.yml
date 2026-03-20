@@ -1,0 +1,35 @@
+name: Forgia Board Sync
+
+# Syncs .forgia/ FD/SDD status to GitHub Projects when files change.
+# Requires: GH_PROJECT_TOKEN secret with project:read and project:write scopes.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.forgia/fd/**'
+      - '.forgia/sdd/**'
+      - '.forgia/architecture/**'
+  workflow_dispatch: # manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: jdx/mise-action@5083fe46898c414b2475087cc79da59e7da859e8 # v2.4.0
+
+      - name: Build forgia
+        run: mise run go:build
+
+      - name: Run forgia sync --push
+        env:
+          GH_TOKEN: ${{ secrets.GH_PROJECT_TOKEN }}
+        run: build/forgia sync --push
