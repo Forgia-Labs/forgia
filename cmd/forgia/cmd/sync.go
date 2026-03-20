@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/Deepzima/forgia/internal/beads"
 	"github.com/Deepzima/forgia/internal/board"
 	"github.com/Deepzima/forgia/internal/boardsync"
 	"github.com/Deepzima/forgia/internal/config"
@@ -85,6 +87,12 @@ func runSync(cmd *cobra.Command, _ []string) error {
 		logger.Warn("board type does not support vault sync via adapter", "type", fmt.Sprintf("%T", b))
 	}
 
+	// Initialize Beads cache (optional — works without it).
+	bd := beads.NewClient()
+	if bd.Available() {
+		logger.Info("beads cache available")
+	}
+
 	// Determine direction.
 	push, err := cmd.Flags().GetBool("push")
 	if err != nil {
@@ -111,6 +119,8 @@ func runSync(cmd *cobra.Command, _ []string) error {
 		if err := b.SyncFromVault(ctx); err != nil {
 			return fmt.Errorf("push sync: %w", err)
 		}
+		// Cache card mappings in Beads after push.
+		cacheCardMappings(ctx, bd, adapter)
 		logger.Info("push complete")
 	}
 
@@ -119,8 +129,34 @@ func runSync(cmd *cobra.Command, _ []string) error {
 		if err := b.SyncToVault(ctx); err != nil {
 			return fmt.Errorf("pull sync: %w", err)
 		}
+		// Update cache after pull.
+		cacheCardMappings(ctx, bd, adapter)
 		logger.Info("pull complete")
 	}
 
 	return nil
+}
+
+// cacheCardMappings stores current vault items in Beads for offline access.
+func cacheCardMappings(ctx context.Context, bd *beads.Client, adapter *boardsync.VaultAdapter) {
+	if !bd.Available() {
+		return
+	}
+
+	items, err := adapter.AllItems(ctx)
+	if err != nil {
+		slog.Warn("failed to read vault items for beads cache", "error", err)
+		return
+	}
+
+	for _, item := range items {
+		if err := bd.CacheCardMapping(ctx, beads.CardMapping{
+			VaultID: item.ID,
+			CardID:  item.ID, // board card ID not available here — use vault ID as key
+			Column:  item.Column,
+		}); err != nil {
+			// CacheCardMapping already logs warnings internally.
+			continue
+		}
+	}
 }

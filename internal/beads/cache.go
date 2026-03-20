@@ -53,7 +53,8 @@ func (bc *Client) GetCardMapping(ctx context.Context, vaultID string) (*CardMapp
 
 	var mapping CardMapping
 	if err := json.Unmarshal([]byte(output), &mapping); err != nil {
-		return nil, nil // corrupted cache entry — treat as miss
+		slog.Warn("corrupted beads cache entry", "vault_id", vaultID, "error", err)
+		return nil, nil // treat as cache miss
 	}
 	return &mapping, nil
 }

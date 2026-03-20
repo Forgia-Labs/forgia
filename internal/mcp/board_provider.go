@@ -11,8 +11,7 @@ import (
 // BoardProvider exposes project board operations as MCP tools.
 // Tools: forgia_board_sync, forgia_board_status.
 type BoardProvider struct {
-	board  board.ProjectBoard
-	logger *slog.Logger
+	board board.ProjectBoard
 }
 
 // Compile-time interface satisfaction check.
@@ -20,10 +19,7 @@ var _ ToolProvider = (*BoardProvider)(nil)
 
 // NewBoardProvider creates an MCP provider for board operations.
 func NewBoardProvider(b board.ProjectBoard) *BoardProvider {
-	return &BoardProvider{
-		board:  b,
-		logger: slog.With("component", "mcp-board"),
-	}
+	return &BoardProvider{board: b}
 }
 
 func (p *BoardProvider) Name() string { return "board" }
@@ -87,7 +83,7 @@ func (p *BoardProvider) callSync(ctx context.Context, params map[string]any) (an
 	result := map[string]any{"direction": direction}
 
 	if direction == "push" || direction == "both" {
-		p.logger.InfoContext(ctx, "MCP sync: vault → board")
+		slog.InfoContext(ctx, "MCP sync: vault → board", "component", "mcp-board")
 		if err := p.board.SyncFromVault(ctx); err != nil {
 			return nil, fmt.Errorf("push sync: %w", err)
 		}
@@ -95,7 +91,7 @@ func (p *BoardProvider) callSync(ctx context.Context, params map[string]any) (an
 	}
 
 	if direction == "pull" || direction == "both" {
-		p.logger.InfoContext(ctx, "MCP sync: board → vault")
+		slog.InfoContext(ctx, "MCP sync: board → vault", "component", "mcp-board")
 		if err := p.board.SyncToVault(ctx); err != nil {
 			return nil, fmt.Errorf("pull sync: %w", err)
 		}

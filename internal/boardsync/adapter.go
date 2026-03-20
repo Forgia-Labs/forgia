@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/Deepzima/forgia/internal/board"
 	"github.com/Deepzima/forgia/internal/vault"
@@ -42,7 +43,7 @@ func (a *VaultAdapter) AllItems(ctx context.Context) ([]board.BoardItem, error) 
 		}
 		// Competitive FD linking — store competes_with as comma-separated field.
 		if len(fd.CompetesWith) > 0 {
-			fields["competes_with"] = joinStrings(fd.CompetesWith)
+			fields["competes_with"] = strings.Join(fd.CompetesWith, ",")
 		}
 
 		items = append(items, board.BoardItem{
@@ -104,18 +105,6 @@ func (a *VaultAdapter) AllItems(ctx context.Context) ([]board.BoardItem, error) 
 	return items, nil
 }
 
-// joinStrings joins a slice with commas.
-func joinStrings(ss []string) string {
-	result := ""
-	for i, s := range ss {
-		if i > 0 {
-			result += ","
-		}
-		result += s
-	}
-	return result
-}
-
 // UpdateStatus updates a vault item's status by ID.
 // Detects FD vs SDD by ID prefix.
 func (a *VaultAdapter) UpdateStatus(ctx context.Context, id, status string) error {
@@ -128,10 +117,13 @@ func (a *VaultAdapter) UpdateStatus(ctx context.Context, id, status string) erro
 func (a *VaultAdapter) updateFDStatus(ctx context.Context, id, status string) error {
 	fd, err := a.vault.GetFD(ctx, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("get FD %s: %w", id, err)
 	}
 	fd.Status = vault.FDStatus(status)
-	return a.vault.UpdateFD(ctx, fd)
+	if err := a.vault.UpdateFD(ctx, fd); err != nil {
+		return fmt.Errorf("update FD %s status: %w", id, err)
+	}
+	return nil
 }
 
 func (a *VaultAdapter) updateSDDStatus(ctx context.Context, id, status string) error {
