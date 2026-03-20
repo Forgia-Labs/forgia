@@ -40,6 +40,15 @@ auto_close_tasks = true
 # Use bd ready for dependency-aware batch execution
 dependency_aware_batch = true
 
+[knowledge]
+# Knowledge layer — codebase-memory-mcp integration (Tier 3)
+# Provider binary name (must be in PATH)
+provider = "codebase-memory-mcp"
+# Auto-index the codebase during `forgia init`
+auto_index = true
+# Reserved for future use — enable file watching for live re-indexing
+auto_sync = true
+
 [watcher]
 # Auto-execute SDDs when they appear in the vault
 enabled = false

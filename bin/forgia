@@ -83,10 +83,61 @@ strip_runner_arg() {
   echo "${args[@]}"
 }
 
+# --- [knowledge] config parsing ---
+
+# Global knowledge config — set by _cfg_load_knowledge()
+export KNOWLEDGE_PROVIDER="codebase-memory-mcp"
+export KNOWLEDGE_AUTO_INDEX="true"
+export KNOWLEDGE_AUTO_SYNC="true"  # reserved for future use
+
+_cfg_load_knowledge() {
+  local config_file="$VAULT_DIR/config.toml"
+  if [[ ! -f "$config_file" ]]; then
+    return 0
+  fi
+
+  # Extract the [knowledge] section (up to next section or EOF)
+  local section
+  section=$(sed -n '/^\[knowledge\]/,/^\[/p' "$config_file" \
+    | grep -v '^\[' | grep -v '^#' | grep -v '^$' || echo "")
+
+  if [[ -z "$section" ]]; then
+    return 0
+  fi
+
+  local val
+
+  val=$(echo "$section" | grep '^provider' | head -1 \
+    | sed 's/.*= *"*//;s/"*$//' | tr -d ' ' || echo "")
+  if [[ -n "$val" ]]; then
+    KNOWLEDGE_PROVIDER="$val"
+  fi
+
+  val=$(echo "$section" | grep '^auto_index' | head -1 \
+    | sed 's/.*= *//' | tr -d ' ' || echo "")
+  if [[ "$val" == "false" ]]; then
+    KNOWLEDGE_AUTO_INDEX="false"
+  elif [[ "$val" == "true" ]]; then
+    KNOWLEDGE_AUTO_INDEX="true"
+  elif [[ -n "$val" ]]; then
+    echo "WARN: [knowledge].auto_index: invalid value '$val', using default 'true'" >&2
+  fi
+
+  val=$(echo "$section" | grep '^auto_sync' | head -1 \
+    | sed 's/.*= *//' | tr -d ' ' || echo "")
+  if [[ "$val" == "false" ]]; then
+    KNOWLEDGE_AUTO_SYNC="false"
+  elif [[ "$val" == "true" ]]; then
+    KNOWLEDGE_AUTO_SYNC="true"
+  elif [[ -n "$val" ]]; then
+    echo "WARN: [knowledge].auto_sync: invalid value '$val', using default 'true'" >&2
+  fi
+}
+
 # --- codebase-memory-mcp helpers ---
 
 _cbm_check_installed() {
-  command -v codebase-memory-mcp >/dev/null 2>&1
+  command -v "$KNOWLEDGE_PROVIDER" >/dev/null 2>&1
 }
 
 _cbm_index() {
@@ -312,6 +363,7 @@ cmd_init() {
   fi
 
   # Tier 3: codebase-memory-mcp integration
+  _cfg_load_knowledge
   if _cbm_check_installed; then
     local auto_index=true
     if [[ -f "$VAULT_DIR/config.toml" ]]; then
@@ -491,6 +543,7 @@ cmd_status() {
   fi
 
   # Knowledge Layer
+  _cfg_load_knowledge
   if _cbm_check_installed; then
     local kl_stats
     kl_stats=$(_cbm_get_stats 2>/dev/null) || kl_stats=""
@@ -681,6 +734,7 @@ cmd_doctor() {
   fi
 
   # Check codebase-memory-mcp
+  _cfg_load_knowledge
   if _cbm_check_installed; then
     local cbm_stats
     cbm_stats=$(_cbm_get_stats) || cbm_stats=""
