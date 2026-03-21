@@ -395,13 +395,13 @@ assert_contains "fd-review checks Mermaid syntax" "Mermaid syntax" "$review_cmd"
 echo ""
 
 # =====================================================
-echo "--- runners: session isolation ---"
+echo "--- runners: claude runner structure ---"
 # =====================================================
 
 claude_runner=$(cat "$ROOT_DIR/modules/runners/claude.sh")
-assert_contains "claude runner has worktree isolation" "worktree" "$claude_runner"
-assert_contains "claude runner creates branch" "branch_name" "$claude_runner"
-assert_contains "claude runner session-isolated" "session-isolated" "$claude_runner"
+assert_contains "claude runner has set -euo pipefail" "set -euo pipefail" "$claude_runner"
+assert_contains "claude runner loads constitution" "constitution" "$claude_runner"
+assert_contains "claude runner loads guardrails" "guardrails" "$claude_runner"
 
 echo ""
 
