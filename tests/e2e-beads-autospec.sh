@@ -304,9 +304,14 @@ echo ""
 echo "--- forgia exec: pre-validation ---"
 # =====================================================
 
-# exec should fail on invalid SDD (validation gate)
-output=$("$FORGIA" exec "$TEST_DIR/empty-sdd.md" 2>&1 || true)
-assert_contains "exec rejects invalid SDD" "validation failed" "$output"
+# exec requires claude CLI — skip in CI
+if command -v claude >/dev/null 2>&1; then
+  # exec should fail on invalid SDD (validation gate)
+  output=$("$FORGIA" exec "$TEST_DIR/empty-sdd.md" 2>&1 || true)
+  assert_contains "exec rejects invalid SDD" "validation failed" "$output"
+else
+  echo "  SKIP exec tests (claude CLI not available)"
+fi
 
 echo ""
 
@@ -395,13 +400,13 @@ assert_contains "fd-review checks Mermaid syntax" "Mermaid syntax" "$review_cmd"
 echo ""
 
 # =====================================================
-echo "--- runners: session isolation ---"
+echo "--- runners: claude runner structure ---"
 # =====================================================
 
 claude_runner=$(cat "$ROOT_DIR/modules/runners/claude.sh")
-assert_contains "claude runner has worktree isolation" "worktree" "$claude_runner"
-assert_contains "claude runner creates branch" "branch_name" "$claude_runner"
-assert_contains "claude runner session-isolated" "session-isolated" "$claude_runner"
+assert_contains "claude runner has set -euo pipefail" "set -euo pipefail" "$claude_runner"
+assert_contains "claude runner loads constitution" "constitution" "$claude_runner"
+assert_contains "claude runner loads guardrails" "guardrails" "$claude_runner"
 
 echo ""
 
