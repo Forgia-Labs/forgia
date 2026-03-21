@@ -417,6 +417,7 @@ func TestMatchGlobDoublestar(t *testing.T) {
 		pattern string
 		match   bool
 	}{
+		// Single ** prefix
 		{"config/.env", "**/.env", true},
 		{"deep/nested/.env", "**/.env", true},
 		{".env", "**/.env", true},
@@ -426,6 +427,18 @@ func TestMatchGlobDoublestar(t *testing.T) {
 		{".env.example", "**/.env.example", true},
 		{".env.local", "**/.env.*", true},
 		{".ssh/id_rsa", "**/.ssh/id_*", true},
+
+		// Multiple ** (e.g. "**/.azure/**")
+		{".azure/config", "**/.azure/**", true},
+		{"home/.azure/credentials", "**/.azure/**", true},
+		{"deep/nested/.azure/tokens/access.json", "**/.azure/**", true},
+		{"flask-aws-utils/config.py", "**/.azure/**", false},
+		{".gcloud/key.json", "**/.gcloud/**", true},
+
+		// Prefix ** + suffix
+		{".aws/credentials", "**/.aws/credentials", true},
+		{"home/.aws/credentials", "**/.aws/credentials", true},
+		{".aws/config", "**/.aws/credentials", false},
 	}
 
 	for _, tt := range tests {

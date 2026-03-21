@@ -357,59 +357,53 @@ func matchGlob(path, pattern string) bool {
 	return matched
 }
 
-// matchDoubleStarGlob handles ** glob patterns.
+// matchDoubleStarGlob handles ** glob patterns by converting to regex.
+// Supports multiple ** in one pattern (e.g. "**/.azure/**").
 func matchDoubleStarGlob(path, pattern string) bool {
-	// Split pattern on **
-	parts := strings.Split(pattern, "**")
-	if len(parts) != 2 {
-		// Multiple ** — fall back to simple check.
-		return strings.Contains(path, strings.ReplaceAll(pattern, "**", ""))
-	}
+	re := globToRegex(pattern)
+	return re.MatchString(path)
+}
 
-	prefix := strings.TrimSuffix(parts[0], "/")
-	suffix := strings.TrimPrefix(parts[1], "/")
+// globToRegex converts a glob pattern with ** to a compiled regex.
+// ** matches zero or more path segments, * matches within a segment.
+func globToRegex(pattern string) *regexp.Regexp {
+	var b strings.Builder
+	b.WriteString("^")
 
-	// If no prefix, just match the suffix against the path and all subpaths.
-	if prefix == "" {
-		// "**/*.pem" — check if any path segment + suffix matches.
-		if suffix == "" {
-			return true
-		}
-		// Match suffix against the full path and the basename.
-		matched, _ := filepath.Match(suffix, filepath.ToSlash(path))
-		if matched {
-			return true
-		}
-		matched, _ = filepath.Match(suffix, filepath.Base(path))
-		if matched {
-			return true
-		}
-		// Check each possible subpath.
-		segments := strings.Split(path, "/")
-		for i := range segments {
-			subpath := strings.Join(segments[i:], "/")
-			matched, _ = filepath.Match(suffix, subpath)
-			if matched {
-				return true
+	i := 0
+	for i < len(pattern) {
+		if i+1 < len(pattern) && pattern[i] == '*' && pattern[i+1] == '*' {
+			// ** matches any number of path segments (including zero).
+			// Consume trailing slash if present.
+			b.WriteString(".*")
+			i += 2
+			if i < len(pattern) && pattern[i] == '/' {
+				i++
 			}
+			continue
 		}
-		return false
+		switch pattern[i] {
+		case '*':
+			b.WriteString("[^/]*") // * matches within a single segment
+		case '?':
+			b.WriteString("[^/]")
+		case '.':
+			b.WriteString(`\.`)
+		case '/':
+			b.WriteString("/")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(pattern[i])))
+		}
+		i++
 	}
 
-	// "foo/**/*.pem" — prefix must match, then suffix against remainder.
-	if !strings.HasPrefix(path, prefix+"/") && path != prefix {
-		return false
+	b.WriteString("$")
+	re, err := regexp.Compile(b.String())
+	if err != nil {
+		// Fallback: literal substring check.
+		return regexp.MustCompile(regexp.QuoteMeta(pattern))
 	}
-	remainder := strings.TrimPrefix(path, prefix+"/")
-	if suffix == "" {
-		return true
-	}
-	matched, _ := filepath.Match(suffix, remainder)
-	if matched {
-		return true
-	}
-	matched, _ = filepath.Match(suffix, filepath.Base(remainder))
-	return matched
+	return re
 }
 
 // matchExecutePattern matches a command against an execute deny pattern.
