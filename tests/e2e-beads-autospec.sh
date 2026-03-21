@@ -304,9 +304,14 @@ echo ""
 echo "--- forgia exec: pre-validation ---"
 # =====================================================
 
-# exec should fail on invalid SDD (validation gate)
-output=$("$FORGIA" exec "$TEST_DIR/empty-sdd.md" 2>&1 || true)
-assert_contains "exec rejects invalid SDD" "validation failed" "$output"
+# exec requires claude CLI — skip in CI
+if command -v claude >/dev/null 2>&1; then
+  # exec should fail on invalid SDD (validation gate)
+  output=$("$FORGIA" exec "$TEST_DIR/empty-sdd.md" 2>&1 || true)
+  assert_contains "exec rejects invalid SDD" "validation failed" "$output"
+else
+  echo "  SKIP exec tests (claude CLI not available)"
+fi
 
 echo ""
 
