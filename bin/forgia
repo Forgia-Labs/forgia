@@ -316,8 +316,8 @@ cmd_init() {
     local auto_index=true
     if [[ -f "$VAULT_DIR/config.toml" ]]; then
       local idx_val
-      idx_val=$(grep -A5 '\[knowledge\]' \
-        "$VAULT_DIR/config.toml" \
+      idx_val=$(grep -v '^#' "$VAULT_DIR/config.toml" \
+        | grep -A5 '^\[knowledge\]' \
         | grep 'auto_index' | head -1 \
         | sed 's/.*= *//' | tr -d ' ' || echo "")
       if [[ "$idx_val" == "false" ]]; then
