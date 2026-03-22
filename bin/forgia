@@ -83,6 +83,112 @@ strip_runner_arg() {
   echo "${args[@]}"
 }
 
+# --- codebase-memory-mcp helpers ---
+
+_cbm_check_installed() {
+  command -v codebase-memory-mcp >/dev/null 2>&1
+}
+
+_cbm_index() {
+  local output
+  output=$(codebase-memory-mcp cli index_repository path=./ \
+    2>/dev/null) || return 1
+  if command -v jq >/dev/null 2>&1; then
+    echo "$output" | jq -r '.symbols_indexed // 0' 2>/dev/null
+  else
+    echo "$output" \
+      | grep -o '"symbols_indexed":[0-9]*' \
+      | head -1 | sed 's/.*://'
+  fi
+}
+
+_cbm_get_stats() {
+  local output
+  output=$(codebase-memory-mcp cli list_projects \
+    2>/dev/null) || return 1
+  local symbols edges synced
+  if command -v jq >/dev/null 2>&1; then
+    symbols=$(echo "$output" \
+      | jq -r '.[0].node_count // 0')
+    edges=$(echo "$output" \
+      | jq -r '.[0].edge_count // 0')
+    synced=$(echo "$output" \
+      | jq -r '.[0].last_indexed // empty' \
+      2>/dev/null) || synced=""
+  else
+    symbols=$(echo "$output" \
+      | grep -o '"node_count":[0-9]*' \
+      | head -1 | sed 's/.*://')
+    edges=$(echo "$output" \
+      | grep -o '"edge_count":[0-9]*' \
+      | head -1 | sed 's/.*://')
+    synced=""
+  fi
+  echo "${symbols:-0} ${edges:-0} ${synced:-}"
+}
+
+_cbm_relative_time() {
+  local ts="$1"
+  [[ -n "$ts" ]] || return 1
+  local now then_s diff
+  now=$(date +%s)
+  # macOS: date -j -f, Linux: date -d
+  then_s=$(date -j -f "%Y-%m-%dT%H:%M:%S" \
+    "${ts%%.*}" +%s 2>/dev/null) \
+    || then_s=$(date -d "$ts" +%s 2>/dev/null) \
+    || return 1
+  diff=$((now - then_s))
+  if (( diff < 60 )); then
+    echo "${diff}s ago"
+  elif (( diff < 3600 )); then
+    echo "$((diff / 60))m ago"
+  elif (( diff < 86400 )); then
+    echo "$((diff / 3600))h ago"
+  else
+    echo "$((diff / 86400))d ago"
+  fi
+}
+
+_cbm_ensure_mcp_json() {
+  local mcp_file=".mcp.json"
+
+  if [[ ! -f "$mcp_file" ]]; then
+    cat > "$mcp_file" <<'JSON'
+{
+  "mcpServers": {
+    "codebase-memory-mcp": {
+      "type": "stdio",
+      "command": "codebase-memory-mcp"
+    }
+  }
+}
+JSON
+    echo "  Created: .mcp.json"
+    return 0
+  fi
+
+  if grep -q '"codebase-memory-mcp"' "$mcp_file" 2>/dev/null; then
+    echo "  .mcp.json: codebase-memory-mcp already configured"
+    return 0
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    local merged
+    merged=$(jq '.mcpServers["codebase-memory-mcp"] = {
+      "type":"stdio",
+      "command":"codebase-memory-mcp"
+    }' "$mcp_file")
+    echo "$merged" > "$mcp_file"
+    echo "  Updated: .mcp.json (merged codebase-memory-mcp)"
+  else
+    echo "  WARN: jq not available, cannot safely merge" \
+      ".mcp.json" >&2
+    echo "  Add manually: \"codebase-memory-mcp\":" \
+      "{\"type\":\"stdio\"," \
+      "\"command\":\"codebase-memory-mcp\"}" >&2
+  fi
+}
+
 # --- init ---
 
 cmd_init() {
@@ -203,6 +309,39 @@ cmd_init() {
     fi
   else
     echo "  Beads: not installed (optional — run: mise run bd:install)"
+  fi
+
+  # Tier 3: codebase-memory-mcp integration
+  if _cbm_check_installed; then
+    local auto_index=true
+    if [[ -f "$VAULT_DIR/config.toml" ]]; then
+      local idx_val
+      idx_val=$(grep -v '^#' "$VAULT_DIR/config.toml" \
+        | grep -A5 '^\[knowledge\]' \
+        | grep 'auto_index' | head -1 \
+        | sed 's/.*= *//' | tr -d ' ' || echo "")
+      if [[ "$idx_val" == "false" ]]; then
+        auto_index=false
+      fi
+    fi
+
+    if [[ "$auto_index" == "true" ]]; then
+      echo ""
+      echo "→ Tier 3: indexing with codebase-memory-mcp..."
+      local idx_symbols
+      idx_symbols=$(_cbm_index) || idx_symbols=""
+      if [[ -n "$idx_symbols" ]] && [[ "$idx_symbols" != "0" ]]; then
+        echo "  Tier 3: codebase-memory-mcp indexed" \
+          "($idx_symbols symbols)"
+      else
+        echo "  Tier 3: codebase-memory-mcp index completed"
+      fi
+    fi
+
+    _cbm_ensure_mcp_json
+  else
+    echo "  Tier 3: codebase-memory-mcp not found" \
+      "(optional — install for code intelligence)"
   fi
 
   # .gitignore for .forgia/ (exclude local-only files)
@@ -349,6 +488,28 @@ cmd_status() {
     echo "--- Beads (ready tasks) ---"
     bd ready 2>/dev/null || echo "  (no ready tasks)"
     echo ""
+  fi
+
+  # Knowledge Layer
+  if _cbm_check_installed; then
+    local kl_stats
+    kl_stats=$(_cbm_get_stats 2>/dev/null) || kl_stats=""
+    if [[ -n "$kl_stats" ]]; then
+      local kl_symbols kl_edges kl_synced kl_time
+      kl_symbols=$(echo "$kl_stats" | awk '{print $1}')
+      kl_edges=$(echo "$kl_stats" | awk '{print $2}')
+      kl_synced=$(echo "$kl_stats" | awk '{print $3}')
+      kl_time=$(_cbm_relative_time "$kl_synced" \
+        2>/dev/null) || kl_time=""
+      echo "── Knowledge Layer ──"
+      local kl_msg
+      kl_msg="$kl_symbols symbols  $kl_edges edges"
+      if [[ -n "$kl_time" ]]; then
+        kl_msg="$kl_msg  synced $kl_time"
+      fi
+      printf "  Tier 3: codebase-memory-mcp  %s\n" "$kl_msg"
+      echo ""
+    fi
   fi
 
   echo ""
@@ -516,6 +677,45 @@ cmd_doctor() {
     ok=$((ok + 1))
   else
     printf "  %-25s MISSING (set ANTHROPIC_API_KEY or OPENAI_API_KEY)\n" "llm api key"
+    warn=$((warn + 1))
+  fi
+
+  # Check codebase-memory-mcp
+  if _cbm_check_installed; then
+    local cbm_stats
+    cbm_stats=$(_cbm_get_stats) || cbm_stats=""
+    if [[ -n "$cbm_stats" ]]; then
+      local cbm_symbols cbm_edges cbm_synced cbm_time
+      cbm_symbols=$(echo "$cbm_stats" | awk '{print $1}')
+      cbm_edges=$(echo "$cbm_stats" | awk '{print $2}')
+      cbm_synced=$(echo "$cbm_stats" | awk '{print $3}')
+      cbm_time=$(_cbm_relative_time "$cbm_synced" \
+        2>/dev/null) || cbm_time=""
+      if [[ "$cbm_symbols" != "0" ]] \
+          || [[ "$cbm_edges" != "0" ]]; then
+        local cbm_msg
+        cbm_msg="$cbm_symbols symbols, $cbm_edges edges"
+        if [[ -n "$cbm_time" ]]; then
+          cbm_msg="$cbm_msg, synced $cbm_time"
+        fi
+        printf "  %-25s OK    %s\n" \
+          "codebase-memory-mcp" "$cbm_msg"
+        ok=$((ok + 1))
+      else
+        printf "  %-25s WARN  %s\n" \
+          "codebase-memory-mcp" \
+          "installed but no index (run forgia init)"
+        warn=$((warn + 1))
+      fi
+    else
+      printf "  %-25s WARN  %s\n" \
+        "codebase-memory-mcp" \
+        "installed but no index (run forgia init)"
+      warn=$((warn + 1))
+    fi
+  else
+    printf "  %-25s WARN  %s\n" \
+      "codebase-memory-mcp" "not installed (optional)"
     warn=$((warn + 1))
   fi
 
