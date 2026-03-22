@@ -66,6 +66,9 @@ func (r *ProviderRegistry) AllTools() []ToolDefinition {
 
 	var tools []ToolDefinition
 	for _, p := range r.providers {
+		if !p.Healthy() {
+			continue
+		}
 		for _, t := range p.Tools() {
 			t.Name = ToolName(t.Namespace, t.Name)
 			tools = append(tools, t)
