@@ -120,7 +120,7 @@ func runSync(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("push sync: %w", err)
 		}
 		// Cache card mappings in Beads after push.
-		cacheCardMappings(ctx, bd, adapter)
+		cacheCardMappings(ctx, bd, b)
 		logger.Info("push complete")
 	}
 
@@ -130,32 +130,36 @@ func runSync(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("pull sync: %w", err)
 		}
 		// Update cache after pull.
-		cacheCardMappings(ctx, bd, adapter)
+		cacheCardMappings(ctx, bd, b)
 		logger.Info("pull complete")
 	}
 
 	return nil
 }
 
-// cacheCardMappings stores current vault items in Beads for offline access.
-func cacheCardMappings(ctx context.Context, bd *beads.Client, adapter *boardsync.VaultAdapter) {
+// cacheCardMappings stores vault→board ID mappings in Beads for offline access.
+// Fetches actual board cards to get real card IDs (not vault IDs).
+func cacheCardMappings(ctx context.Context, bd *beads.Client, b board.ProjectBoard) {
 	if !bd.Available() {
 		return
 	}
 
-	items, err := adapter.AllItems(ctx)
+	cards, err := b.GetCards(ctx, board.CardFilter{})
 	if err != nil {
-		slog.Warn("failed to read vault items for beads cache", "error", err)
+		slog.WarnContext(ctx, "failed to read board cards for beads cache", "error", err)
 		return
 	}
 
-	for _, item := range items {
+	for _, card := range cards {
+		vaultID := board.ExtractIDFromTitle(card.Title)
+		if vaultID == "" {
+			continue
+		}
 		if err := bd.CacheCardMapping(ctx, beads.CardMapping{
-			VaultID: item.ID,
-			CardID:  item.ID, // board card ID not available here — use vault ID as key
-			Column:  item.Column,
+			VaultID: vaultID,
+			CardID:  card.ID,
+			Column:  card.Column,
 		}); err != nil {
-			// CacheCardMapping already logs warnings internally.
 			continue
 		}
 	}

@@ -114,12 +114,37 @@ func (a *VaultAdapter) UpdateStatus(ctx context.Context, id, status string) erro
 	return a.updateFDStatus(ctx, id, status)
 }
 
+// validFDStatuses is the set of valid FD status values.
+var validFDStatuses = map[vault.FDStatus]bool{
+	vault.FDPlanned:    true,
+	vault.FDApproved:   true,
+	vault.FDInProgress: true,
+	vault.FDComplete:   true,
+	vault.FDClosed:     true,
+	vault.FDRejected:   true,
+	vault.FDAbandoned:  true,
+}
+
+// validSDDStatuses is the set of valid SDD status values.
+var validSDDStatuses = map[vault.SDDStatus]bool{
+	vault.SDDPlanned:    true,
+	vault.SDDValidated:  true,
+	vault.SDDInProgress: true,
+	vault.SDDDone:       true,
+	vault.SDDFailed:     true,
+	vault.SDDCancelled:  true,
+}
+
 func (a *VaultAdapter) updateFDStatus(ctx context.Context, id, status string) error {
+	fdStatus := vault.FDStatus(status)
+	if !validFDStatuses[fdStatus] {
+		return fmt.Errorf("invalid FD status %q from board (valid: planned, approved, in-progress, complete, closed, rejected, abandoned)", status)
+	}
 	fd, err := a.vault.GetFD(ctx, id)
 	if err != nil {
 		return fmt.Errorf("get FD %s: %w", id, err)
 	}
-	fd.Status = vault.FDStatus(status)
+	fd.Status = fdStatus
 	if err := a.vault.UpdateFD(ctx, fd); err != nil {
 		return fmt.Errorf("update FD %s status: %w", id, err)
 	}
@@ -127,6 +152,10 @@ func (a *VaultAdapter) updateFDStatus(ctx context.Context, id, status string) er
 }
 
 func (a *VaultAdapter) updateSDDStatus(ctx context.Context, id, status string) error {
+	sddStatus := vault.SDDStatus(status)
+	if !validSDDStatuses[sddStatus] {
+		return fmt.Errorf("invalid SDD status %q from board (valid: planned, validated, in-progress, done, failed, cancelled)", status)
+	}
 	// SDD lookup requires the parent FD ID. Walk all FDs to find it.
 	fds, err := a.vault.ListFDs(ctx)
 	if err != nil {
@@ -137,7 +166,7 @@ func (a *VaultAdapter) updateSDDStatus(ctx context.Context, id, status string) e
 		if err != nil {
 			continue
 		}
-		sdd.Status = vault.SDDStatus(status)
+		sdd.Status = sddStatus
 		return a.vault.UpdateSDD(ctx, sdd)
 	}
 	return fmt.Errorf("SDD %q not found in any FD", id)

@@ -89,9 +89,9 @@ func TestExtractIDFromTitle(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := extractIDFromTitle(tt.title)
+		got := ExtractIDFromTitle(tt.title)
 		if got != tt.want {
-			t.Errorf("extractIDFromTitle(%q) = %q, want %q", tt.title, got, tt.want)
+			t.Errorf("ExtractIDFromTitle(%q) = %q, want %q", tt.title, got, tt.want)
 		}
 	}
 }

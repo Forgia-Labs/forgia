@@ -53,36 +53,72 @@ func (b *GitHubBoard) SetVault(reader VaultReader, writer VaultWriter) {
 }
 
 // resolveProject fetches the project ID and status field options.
+// Tries user-owned project first, falls back to organization-owned.
 func (b *GitHubBoard) resolveProject(ctx context.Context) error {
-	query := `query($owner: String!, $number: Int!) {
-		user(login: $owner) {
-			projectV2(number: $number) {
-				id
-				fields(first: 20) {
-					nodes {
-						... on ProjectV2SingleSelectField {
-							id
-							name
-							options { id name }
+	// Try user-owned first, then org-owned.
+	for _, ownerType := range []string{"user", "organization"} {
+		err := b.tryResolveProject(ctx, ownerType)
+		if err == nil {
+			return nil
+		}
+		b.logger.InfoContext(ctx, "project not found as "+ownerType+", trying next", "owner", b.owner)
+	}
+	return fmt.Errorf("project %s/%d not found as user or organization", b.owner, b.number)
+}
+
+// tryResolveProject attempts to resolve a project under the given owner type.
+func (b *GitHubBoard) tryResolveProject(ctx context.Context, ownerType string) error {
+	// GraphQL doesn't allow variable field names, so we use two separate queries.
+	var queryTemplate string
+	switch ownerType {
+	case "organization":
+		queryTemplate = `query($owner: String!, $number: Int!) {
+			organization(login: $owner) {
+				projectV2(number: $number) {
+					id
+					fields(first: 20) {
+						nodes {
+							... on ProjectV2SingleSelectField {
+								id
+								name
+								options { id name }
+							}
 						}
 					}
 				}
 			}
-		}
-	}`
+		}`
+	default:
+		queryTemplate = `query($owner: String!, $number: Int!) {
+			user(login: $owner) {
+				projectV2(number: $number) {
+					id
+					fields(first: 20) {
+						nodes {
+							... on ProjectV2SingleSelectField {
+								id
+								name
+								options { id name }
+							}
+						}
+					}
+				}
+			}
+		}`
+	}
 	vars := map[string]string{
 		"owner":  b.owner,
 		"number": fmt.Sprintf("%d", b.number),
 	}
 
-	result, err := b.graphql(ctx, query, vars)
+	result, err := b.graphql(ctx, queryTemplate, vars)
 	if err != nil {
 		return err
 	}
 
-	projectIDVal, ok := jsonPath(result, "data", "user", "projectV2", "id")
+	projectIDVal, ok := jsonPath(result, "data", ownerType, "projectV2", "id")
 	if !ok {
-		return fmt.Errorf("project %s/%d not found", b.owner, b.number)
+		return fmt.Errorf("project %s/%d not found as %s", b.owner, b.number, ownerType)
 	}
 	pid, ok := projectIDVal.(string)
 	if !ok {
@@ -90,7 +126,7 @@ func (b *GitHubBoard) resolveProject(ctx context.Context) error {
 	}
 	b.projectID = pid
 
-	fieldsVal, ok := jsonPath(result, "data", "user", "projectV2", "fields", "nodes")
+	fieldsVal, ok := jsonPath(result, "data", ownerType, "projectV2", "fields", "nodes")
 	if !ok {
 		return fmt.Errorf("could not read project fields")
 	}
@@ -224,11 +260,33 @@ func (b *GitHubBoard) MoveCard(ctx context.Context, id string, column string) er
 }
 
 // GetCards returns items from the project, optionally filtered.
+// Paginates through all items (100 per page) to avoid silent data loss.
 func (b *GitHubBoard) GetCards(ctx context.Context, filter CardFilter) ([]BoardItem, error) {
-	query := `query($projectId: ID!) {
+	var allCards []BoardItem
+	var cursor string
+
+	for {
+		cards, nextCursor, err := b.getCardsPage(ctx, filter, cursor)
+		if err != nil {
+			return nil, err
+		}
+		allCards = append(allCards, cards...)
+		if nextCursor == "" {
+			break
+		}
+		cursor = nextCursor
+	}
+
+	return allCards, nil
+}
+
+// getCardsPage fetches a single page of project items.
+func (b *GitHubBoard) getCardsPage(ctx context.Context, filter CardFilter, cursor string) ([]BoardItem, string, error) {
+	query := `query($projectId: ID!, $cursor: String) {
 		node(id: $projectId) {
 			... on ProjectV2 {
-				items(first: 100) {
+				items(first: 100, after: $cursor) {
+					pageInfo { hasNextPage endCursor }
 					nodes {
 						id
 						content {
@@ -251,19 +309,22 @@ func (b *GitHubBoard) GetCards(ctx context.Context, filter CardFilter) ([]BoardI
 	vars := map[string]string{
 		"projectId": b.projectID,
 	}
+	if cursor != "" {
+		vars["cursor"] = cursor
+	}
 
 	result, err := b.graphql(ctx, query, vars)
 	if err != nil {
-		return nil, fmt.Errorf("get cards: %w", err)
+		return nil, "", fmt.Errorf("get cards: %w", err)
 	}
 
 	itemsVal, ok := jsonPath(result, "data", "node", "items", "nodes")
 	if !ok {
-		return nil, nil
+		return nil, "", nil
 	}
 	itemNodes, ok := itemsVal.([]any)
 	if !ok {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	var cards []BoardItem
@@ -309,7 +370,17 @@ func (b *GitHubBoard) GetCards(ctx context.Context, filter CardFilter) ([]BoardI
 		cards = append(cards, card)
 	}
 
-	return cards, nil
+	// Extract pagination cursor.
+	var nextCursor string
+	if pageInfo, ok := jsonPath(result, "data", "node", "items", "pageInfo"); ok {
+		if pi, ok := pageInfo.(map[string]any); ok {
+			if hasNext, _ := pi["hasNextPage"].(bool); hasNext {
+				nextCursor, _ = pi["endCursor"].(string)
+			}
+		}
+	}
+
+	return cards, nextCursor, nil
 }
 
 // SyncFromVault pushes local .forgia/ state to the board.
@@ -332,7 +403,7 @@ func (b *GitHubBoard) SyncFromVault(ctx context.Context) error {
 	// Index existing cards by title prefix (e.g., "FD-a3f2 Feature Name" → "FD-a3f2").
 	existing := make(map[string]BoardItem, len(boardCards))
 	for _, card := range boardCards {
-		id := extractIDFromTitle(card.Title)
+		id := ExtractIDFromTitle(card.Title)
 		if id != "" {
 			existing[id] = card
 		}
@@ -384,7 +455,7 @@ func (b *GitHubBoard) SyncToVault(ctx context.Context) error {
 
 	var updated int
 	for _, card := range boardCards {
-		id := extractIDFromTitle(card.Title)
+		id := ExtractIDFromTitle(card.Title)
 		if id == "" || card.Column == "" {
 			continue
 		}
@@ -444,9 +515,9 @@ func (b *GitHubBoard) statusOptionNames() []string {
 	return names
 }
 
-// extractIDFromTitle parses a Forgia ID from a card title.
+// ExtractIDFromTitle parses a Forgia ID from a card title.
 // Expects format "FD-xxxx Title" or "SDD-xxxx Title".
-func extractIDFromTitle(title string) string {
+func ExtractIDFromTitle(title string) string {
 	parts := strings.SplitN(title, " ", 2)
 	if len(parts) == 0 {
 		return ""
