@@ -63,6 +63,9 @@ type Guardrails struct {
 	Read    DenyList `toml:"read"`
 	Execute DenyList `toml:"execute"`
 	Write   DenyList `toml:"write"`
+
+	// globCache holds pre-compiled regexes for ** glob patterns (populated by Parse).
+	globCache map[string]*regexp.Regexp
 }
 
 // DenyList contains glob patterns that are denied.
@@ -120,14 +123,24 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)api[_-]?key\s*[:=]\s*["'][a-zA-Z0-9\-_]{16,}["']`), // Generic API keys
 }
 
-// Parse reads deny.toml from raw bytes.
+// Parse reads deny.toml from raw bytes and pre-compiles glob regexes.
 func Parse(data []byte) (*Guardrails, error) {
 	if len(data) == 0 {
-		return &Guardrails{}, nil
+		return &Guardrails{globCache: make(map[string]*regexp.Regexp)}, nil
 	}
 	var g Guardrails
 	if err := toml.Unmarshal(data, &g); err != nil {
 		return nil, fmt.Errorf("guardrails: parse deny.toml: %w", err)
+	}
+	// Pre-compile glob regexes for all ** patterns.
+	g.globCache = make(map[string]*regexp.Regexp)
+	for _, patterns := range [][]string{g.Read.Patterns, g.Write.Patterns} {
+		for _, p := range patterns {
+			clean := strings.TrimPrefix(p, "!")
+			if strings.Contains(clean, "**") {
+				g.globCache[clean] = globToRegex(filepath.ToSlash(clean))
+			}
+		}
 	}
 	return &g, nil
 }
@@ -136,10 +149,10 @@ func Parse(data []byte) (*Guardrails, error) {
 func (g *Guardrails) CheckFilePaths(ctx context.Context, paths []string) []Violation {
 	var violations []Violation
 	for _, p := range paths {
-		if v := matchDenyList(p, &g.Read, "read"); v != nil {
+		if v := matchDenyList(p, &g.Read, "read", g.globCache); v != nil {
 			violations = append(violations, *v)
 		}
-		if v := matchDenyList(p, &g.Write, "write"); v != nil {
+		if v := matchDenyList(p, &g.Write, "write", g.globCache); v != nil {
 			violations = append(violations, *v)
 		}
 	}
@@ -150,7 +163,7 @@ func (g *Guardrails) CheckFilePaths(ctx context.Context, paths []string) []Viola
 func (g *Guardrails) CheckWritePaths(ctx context.Context, paths []string) []Violation {
 	var violations []Violation
 	for _, p := range paths {
-		if v := matchDenyList(p, &g.Write, "write"); v != nil {
+		if v := matchDenyList(p, &g.Write, "write", g.globCache); v != nil {
 			violations = append(violations, *v)
 		}
 	}
@@ -161,7 +174,7 @@ func (g *Guardrails) CheckWritePaths(ctx context.Context, paths []string) []Viol
 func (g *Guardrails) CheckReadPaths(ctx context.Context, paths []string) []Violation {
 	var violations []Violation
 	for _, p := range paths {
-		if v := matchDenyList(p, &g.Read, "read"); v != nil {
+		if v := matchDenyList(p, &g.Read, "read", g.globCache); v != nil {
 			violations = append(violations, *v)
 		}
 	}
@@ -205,8 +218,10 @@ func (g *Guardrails) CheckBoundaries(_ context.Context, paths []string, writeDir
 
 		// Check forbidden dirs first.
 		for _, forbidden := range forbiddenDirs {
-			matched, _ := filepath.Match(forbidden, clean)
-			if matched || strings.HasPrefix(clean, filepath.Clean(forbidden)) {
+			cleanForbidden := filepath.Clean(forbidden)
+			matched, _ := filepath.Match(cleanForbidden, clean)
+			// Append separator to prevent "src" matching "src2/" (sibling bypass).
+			if matched || clean == cleanForbidden || strings.HasPrefix(clean, cleanForbidden+string(filepath.Separator)) {
 				violations = append(violations, Violation{
 					Type:    "boundary",
 					Pattern: forbidden,
@@ -219,7 +234,9 @@ func (g *Guardrails) CheckBoundaries(_ context.Context, paths []string, writeDir
 		if len(writeDirs) > 0 {
 			allowed := false
 			for _, dir := range writeDirs {
-				if strings.HasPrefix(clean, filepath.Clean(dir)) {
+				cleanDir := filepath.Clean(dir)
+				// Append separator to prevent "src" matching "src2/" (sibling bypass).
+				if clean == cleanDir || strings.HasPrefix(clean, cleanDir+string(filepath.Separator)) {
 					allowed = true
 					break
 				}
@@ -238,8 +255,18 @@ func (g *Guardrails) CheckBoundaries(_ context.Context, paths []string, writeDir
 
 // ScanForSecrets checks file contents for API key / credential patterns.
 func (g *Guardrails) ScanForSecrets(ctx context.Context, files []string) []Violation {
+	const maxScanSize = 1 << 20 // 1 MB — skip large/binary files
 	var violations []Violation
 	for _, f := range files {
+		info, err := os.Stat(f)
+		if err != nil {
+			slog.WarnContext(ctx, "guardrails: cannot stat file for secret scan", "file", f, "error", err)
+			continue
+		}
+		if info.Size() > maxScanSize {
+			slog.InfoContext(ctx, "guardrails: skipping large file for secret scan", "file", f, "size", info.Size())
+			continue
+		}
 		data, err := os.ReadFile(f)
 		if err != nil {
 			slog.WarnContext(ctx, "guardrails: cannot read file for secret scan", "file", f, "error", err)
@@ -306,7 +333,8 @@ type EnforceOpts struct {
 }
 
 // matchDenyList checks a path against a deny list, respecting ! exceptions.
-func matchDenyList(path string, dl *DenyList, violationType string) *Violation {
+// cache is a map of pre-compiled regexes for ** patterns (may be nil).
+func matchDenyList(path string, dl *DenyList, violationType string, cache map[string]*regexp.Regexp) *Violation {
 	denied := false
 	matchedPattern := ""
 
@@ -314,13 +342,13 @@ func matchDenyList(path string, dl *DenyList, violationType string) *Violation {
 		// Exception pattern: "!**/.env.example" undoes a previous deny.
 		if strings.HasPrefix(pattern, "!") {
 			exception := pattern[1:]
-			if matchGlob(path, exception) {
+			if matchGlob(path, exception, cache) {
 				denied = false
 			}
 			continue
 		}
 
-		if matchGlob(path, pattern) {
+		if matchGlob(path, pattern, cache) {
 			denied = true
 			matchedPattern = pattern
 		}
@@ -333,17 +361,21 @@ func matchDenyList(path string, dl *DenyList, violationType string) *Violation {
 }
 
 // matchGlob matches a path against a glob pattern.
-// Supports ** for recursive directory matching.
-func matchGlob(path, pattern string) bool {
+// Supports ** for recursive directory matching. cache is optional (may be nil).
+func matchGlob(path, pattern string, cache map[string]*regexp.Regexp) bool {
 	// Normalize separators.
 	path = filepath.ToSlash(path)
 	pattern = filepath.ToSlash(pattern)
 
-	// Handle ** patterns by converting to a more flexible match.
+	// Handle ** patterns — use cached regex if available.
 	if strings.Contains(pattern, "**") {
-		// "**/*.pem" should match "foo/bar/baz.pem" and "baz.pem"
-		// Convert ** to regex-like matching.
-		return matchDoubleStarGlob(path, pattern)
+		if cache != nil {
+			if re, ok := cache[pattern]; ok {
+				return re.MatchString(path)
+			}
+		}
+		// Fallback: compile on the fly (for patterns not in cache).
+		return globToRegex(pattern).MatchString(path)
 	}
 
 	// Simple filepath.Match for non-** patterns.
@@ -355,13 +387,6 @@ func matchGlob(path, pattern string) bool {
 	// Also try matching against just the filename.
 	matched, _ = filepath.Match(pattern, filepath.Base(path))
 	return matched
-}
-
-// matchDoubleStarGlob handles ** glob patterns by converting to regex.
-// Supports multiple ** in one pattern (e.g. "**/.azure/**").
-func matchDoubleStarGlob(path, pattern string) bool {
-	re := globToRegex(pattern)
-	return re.MatchString(path)
 }
 
 // globToRegex converts a glob pattern with ** to a compiled regex.

@@ -225,6 +225,36 @@ func TestCheckBoundariesForbiddenDir(t *testing.T) {
 	}
 }
 
+func TestCheckBoundariesSiblingBypass(t *testing.T) {
+	g := &Guardrails{}
+
+	// "src2/main.go" must NOT be allowed when write_dirs is ["src/"]
+	violations := g.CheckBoundaries(ctx,
+		[]string{"src/main.go", "src2/main.go"},
+		[]string{"src/"},
+		nil,
+	)
+	if len(violations) != 1 {
+		t.Fatalf("expected 1 violation (src2 not allowed), got %d: %v", len(violations), violations)
+	}
+	if violations[0].Target != "src2/main.go" {
+		t.Errorf("expected violation on src2/main.go, got %s", violations[0].Target)
+	}
+
+	// Same for forbidden: ".forgia" must not match ".forgia2/"
+	violations = g.CheckBoundaries(ctx,
+		[]string{".forgia/config.toml", ".forgia2/data.txt"},
+		nil,
+		[]string{".forgia"},
+	)
+	if len(violations) != 1 {
+		t.Fatalf("expected 1 violation (.forgia only), got %d: %v", len(violations), violations)
+	}
+	if violations[0].Target != ".forgia/config.toml" {
+		t.Errorf("expected violation on .forgia/config.toml, got %s", violations[0].Target)
+	}
+}
+
 func TestCheckBoundariesNoRestrictions(t *testing.T) {
 	g := &Guardrails{}
 
@@ -442,7 +472,7 @@ func TestMatchGlobDoublestar(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := matchGlob(tt.path, tt.pattern)
+		got := matchGlob(tt.path, tt.pattern, nil)
 		if got != tt.match {
 			t.Errorf("matchGlob(%q, %q) = %v, want %v", tt.path, tt.pattern, got, tt.match)
 		}
