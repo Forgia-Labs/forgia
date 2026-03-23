@@ -131,6 +131,69 @@ assert_file_exists "creates clean-code principles" "$TEST_DIR/.forgia/dev-guide/
 assert_file_exists "creates solid principles" "$TEST_DIR/.forgia/dev-guide/principles/solid.md"
 assert_file_exists "creates design-patterns principles" "$TEST_DIR/.forgia/dev-guide/principles/design-patterns.md"
 
+assert_dir_exists "creates architecture/" "$TEST_DIR/.forgia/architecture"
+assert_file_exists "creates system-context.yaml" "$TEST_DIR/.forgia/architecture/system-context.yaml"
+assert_file_exists "creates containers.yaml" "$TEST_DIR/.forgia/architecture/containers.yaml"
+assert_file_exists "creates technology-decisions.yaml" "$TEST_DIR/.forgia/architecture/technology-decisions.yaml"
+assert_file_exists "creates quality-attributes.yaml" "$TEST_DIR/.forgia/architecture/quality-attributes.yaml"
+assert_file_exists "creates constraints.yaml" "$TEST_DIR/.forgia/architecture/constraints.yaml"
+assert_file_exists "creates glossary.yaml" "$TEST_DIR/.forgia/architecture/glossary.yaml"
+assert_dir_exists "creates contexts/" "$TEST_DIR/.forgia/contexts"
+assert_file_exists "creates contexts/_template.yaml" "$TEST_DIR/.forgia/contexts/_template.yaml"
+assert_dir_exists "creates learnings/" "$TEST_DIR/.forgia/learnings"
+assert_file_exists "creates learnings/_template.yaml" "$TEST_DIR/.forgia/learnings/_template.yaml"
+
+echo ""
+
+# =====================================================
+echo "--- forgia init (architecture idempotency) ---"
+# =====================================================
+
+# Modify a file inside architecture/ — re-init should NOT overwrite
+echo "# Custom content" > "$TEST_DIR/.forgia/architecture/system-context.yaml"
+"$FORGIA" init <<< "y" >/dev/null 2>&1
+custom_content=$(cat "$TEST_DIR/.forgia/architecture/system-context.yaml")
+assert_eq "architecture/ not overwritten on re-init" "# Custom content" "$custom_content"
+
+echo ""
+
+# =====================================================
+echo "--- YAML template validation ---"
+# =====================================================
+
+# Detect a working YAML parser
+yaml_parser=""
+if command -v python3 >/dev/null 2>&1 && python3 -c "import yaml" 2>/dev/null; then
+  yaml_parser="python3"
+elif command -v ruby >/dev/null 2>&1; then
+  yaml_parser="ruby"
+fi
+
+yaml_ok=true
+if [[ -n "$yaml_parser" ]]; then
+  for f in "$ROOT_DIR"/modules/vault-template/architecture/*.yaml \
+           "$ROOT_DIR"/modules/vault-template/contexts/_template.yaml \
+           "$ROOT_DIR"/modules/vault-template/learnings/_template.yaml; do
+    local_ok=true
+    if [[ "$yaml_parser" == "python3" ]]; then
+      python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null || local_ok=false
+    else
+      ruby -ryaml -e "YAML.safe_load(File.read('$f'))" 2>/dev/null || local_ok=false
+    fi
+    if [[ "$local_ok" == "false" ]]; then
+      yaml_ok=false
+      printf "  %sFAIL%s YAML parse: %s\n" "$RED" "$NC" "$(basename "$f")"
+      TOTAL=$((TOTAL + 1))
+      FAILED=$((FAILED + 1))
+    fi
+  done
+fi
+if [[ "$yaml_ok" == "true" ]]; then
+  TOTAL=$((TOTAL + 1))
+  PASSED=$((PASSED + 1))
+  printf "  %sPASS%s all YAML templates are parseable\n" "$GREEN" "$NC"
+fi
+
 echo ""
 
 # =====================================================

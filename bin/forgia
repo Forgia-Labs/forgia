@@ -298,6 +298,33 @@ cmd_init() {
     echo "  Created: guardrails/ignore"
   fi
 
+  # Architecture templates (DDD knowledge base)
+  if [[ ! -d "$VAULT_DIR/architecture" ]]; then
+    mkdir -p "$VAULT_DIR/architecture"
+    cp "$tmpl_dir/architecture/"*.yaml "$VAULT_DIR/architecture/"
+    echo "  Created: architecture/"
+  else
+    echo "  Skipped: architecture/ (already exists)"
+  fi
+
+  # Bounded contexts templates
+  if [[ ! -d "$VAULT_DIR/contexts" ]]; then
+    mkdir -p "$VAULT_DIR/contexts"
+    cp "$tmpl_dir/contexts/_template.yaml" "$VAULT_DIR/contexts/"
+    echo "  Created: contexts/"
+  else
+    echo "  Skipped: contexts/ (already exists)"
+  fi
+
+  # Learnings templates (feedback loop)
+  if [[ ! -d "$VAULT_DIR/learnings" ]]; then
+    mkdir -p "$VAULT_DIR/learnings"
+    cp "$tmpl_dir/learnings/_template.yaml" "$VAULT_DIR/learnings/"
+    echo "  Created: learnings/"
+  else
+    echo "  Skipped: learnings/ (already exists)"
+  fi
+
   # Dev guide (always update)
   cp "$tmpl_dir/dev-guide/"*.md "$VAULT_DIR/dev-guide/" 2>/dev/null || true
   echo "  Created: dev-guide/"

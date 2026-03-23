@@ -1,0 +1,7 @@
+# Glossary — Ubiquitous Language
+# Shared terms and their definitions used across the project.
+# Keeping a glossary ensures consistent communication between team and agents.
+
+terms:
+  - term: ""            # the word or phrase
+    meaning: ""         # precise definition in the project context

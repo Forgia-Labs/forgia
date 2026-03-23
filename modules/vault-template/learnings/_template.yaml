@@ -1,0 +1,30 @@
+# Learning Record Template
+# Copy this file as learnings/<fd-id>.yaml after closing an FD.
+# Captures what worked, what didn't, and suggestions for future work.
+
+fd: ""              # FD identifier (e.g. FD-001)
+title: ""           # FD title
+closed: ""          # date the FD was closed (YYYY-MM-DD)
+
+failure_modes:
+  - pattern: ""         # what went wrong
+    context: ""         # in which situation
+    outcome: ""         # what happened as a result
+    recommendation: ""  # how to avoid it next time
+
+successful_patterns:
+  - pattern: ""         # what worked well
+    context: ""         # in which situation
+    outcome: ""         # the positive result
+
+suggestions: []         # free-form improvement ideas (list of strings)
+
+interface_corrections:
+  - context: ""         # which bounded context
+    interface: ""       # which interface
+    planned: ""         # what was originally planned
+    actual: ""          # what was actually implemented
+
+new_terms:
+  - term: ""            # new term discovered during the FD
+    meaning: ""         # its definition
