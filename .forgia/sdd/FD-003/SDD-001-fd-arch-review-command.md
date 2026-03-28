@@ -1,6 +1,6 @@
 ---
 id: "SDD-001"
-fd: "FD-002"
+fd: "FD-003"
 title: "/fd-arch-review slash command"
 status: done
 agent: "claude-code"
@@ -13,7 +13,7 @@ tags: ["phase:2-core"]
 
 # SDD-001: /fd-arch-review slash command
 
-> Parent FD: [[FD-002]]
+> Parent FD: [[FD-003]]
 
 ## Scope
 
@@ -45,7 +45,7 @@ The command accepts an FD identifier (`$ARGUMENTS` = `FD-NNN`) and produces a st
 
 | Interface / Interfaccia | Type / Tipo | Description / Descrizione |
 |-------------------------|-------------|---------------------------|
-| `$ARGUMENTS` input | string | FD identifier (e.g., `FD-002`). Validated by the command — must match existing file in `.forgia/fd/` |
+| `$ARGUMENTS` input | string | FD identifier (e.g., `FD-003`). Validated by the command — must match existing file in `.forgia/fd/` |
 | Report output | markdown (stdout) | Structured report with 5 sections as defined in Scope. Rendered to user in Claude Code conversation |
 | Vault file reads | filesystem | Reads: FD file, constitution.md, dev-guide/principles/*.md, dev-guide/lang/*.md, guardrails/deny.toml |
 | Codebase reads | filesystem | Scans project directory structure, reads package files, import statements. Must respect deny.toml patterns |
@@ -109,7 +109,7 @@ The command instructions MUST include explicit directives to:
 
 ## Context / Contesto
 
-- [ ] `.forgia/fd/FD-002-fd-arch-review.md` — parent FD with full requirements
+- [ ] `.forgia/fd/FD-003-fd-arch-review.md` — parent FD with full requirements
 - [ ] `modules/claude-commands/fd-review.md` — existing review command, reference for structure and conventions
 - [ ] `modules/claude-commands/sdd-dry-run.md` — existing complex slash command, reference for multi-pass analysis pattern
 - [ ] `modules/claude-commands/fd-new.md` — reference for `$ARGUMENTS` parsing and error handling
@@ -126,7 +126,7 @@ The command instructions MUST include explicit directives to:
 ## Constitution Check
 
 - [ ] Respects code standards — command is a markdown prompt, follows existing slash command conventions
-- [ ] Respects commit conventions — commits will use `feat(FD-002): description` format
+- [ ] Respects commit conventions — commits will use `feat(FD-003): description` format
 - [ ] No hardcoded secrets — command reads no secrets, produces no secrets
 - [ ] Tests defined and sufficient — 7 manual test scenarios covering all report sections, error paths, guardrails, and read-only constraint
 

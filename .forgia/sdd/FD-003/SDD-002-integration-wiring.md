@@ -1,6 +1,6 @@
 ---
 id: "SDD-002"
-fd: "FD-002"
+fd: "FD-003"
 title: "Integration wiring and documentation"
 status: done
 agent: "claude-code"
@@ -13,7 +13,7 @@ tags: ["phase:2-core"]
 
 # SDD-002: Integration wiring and documentation
 
-> Parent FD: [[FD-002]]
+> Parent FD: [[FD-003]]
 
 ## Scope
 
@@ -33,7 +33,7 @@ Wire the `/fd-arch-review` slash command (created by SDD-001) into the Forgia wo
 
 2. **Verify embedded skill loading** — confirm that `modules/claude-commands/fd-arch-review.md` is picked up by the `go:embed` directive in `embedded.go` and that `internal/skill/embedded.go` → `LoadEmbedded()` registers it with the correct name (`fd-arch-review`) and category (`CategoryFD`).
 
-3. **E2E validation** — run `go build ./cmd/forgia/` and verify `forgia skills` lists `fd-arch-review`. Run `forgia skill fd-arch-review FD-002` and verify it invokes the command without errors.
+3. **E2E validation** — run `go build ./cmd/forgia/` and verify `forgia skills` lists `fd-arch-review`. Run `forgia skill fd-arch-review FD-003` and verify it invokes the command without errors.
 
 ### What this SDD does NOT cover
 
@@ -79,7 +79,7 @@ This SDD depends on SDD-001 being completed first. The file `modules/claude-comm
 | Manual | Review `review-process.md` diff — verify `/fd-arch-review` is added in the correct position | Documentation accuracy |
 | Manual | Run `go build ./cmd/forgia/` — verify build succeeds | Build verification |
 | Manual | Run `build/forgia skills` — verify `fd-arch-review` appears in the list | Skill registration |
-| Manual | Run `build/forgia skill fd-arch-review FD-002` — verify command invokes without crash | E2E smoke test |
+| Manual | Run `build/forgia skill fd-arch-review FD-003` — verify command invokes without crash | E2E smoke test |
 
 ## Acceptance Criteria / Criteri di Accettazione
 
@@ -87,12 +87,12 @@ This SDD depends on SDD-001 being completed first. The file `modules/claude-comm
 - [ ] New subsection in `review-process.md` documents `/fd-arch-review`: purpose, usage, advisory (non-gate) nature
 - [ ] `go build ./cmd/forgia/` succeeds with the new slash command file embedded
 - [ ] `forgia skills` output includes `fd-arch-review`
-- [ ] `forgia skill fd-arch-review FD-002` invokes successfully (produces report or delegates to Claude)
+- [ ] `forgia skill fd-arch-review FD-003` invokes successfully (produces report or delegates to Claude)
 - [ ] No Go code was modified — only documentation and verification
 
 ## Context / Contesto
 
-- [ ] `.forgia/sdd/FD-002/SDD-001-fd-arch-review-command.md` — dependency SDD
+- [ ] `.forgia/sdd/FD-003/SDD-001-fd-arch-review-command.md` — dependency SDD
 - [ ] `modules/claude-commands/fd-arch-review.md` — the file created by SDD-001 (must exist)
 - [ ] `.forgia/dev-guide/review-process.md` — file to update
 - [ ] `internal/skill/embedded.go` — `LoadEmbedded()` function, `inferCategory()` logic (confirms `fd-` prefix → `CategoryFD`)
@@ -103,7 +103,7 @@ This SDD depends on SDD-001 being completed first. The file `modules/claude-comm
 ## Constitution Check
 
 - [ ] Respects code standards — documentation follows existing dev-guide conventions
-- [ ] Respects commit conventions — commits will use `feat(FD-002): description` format
+- [ ] Respects commit conventions — commits will use `feat(FD-003): description` format
 - [ ] No hardcoded secrets — no secrets involved
 - [ ] Tests defined and sufficient — 4 verification steps covering docs, build, skill registration, and E2E
 
@@ -123,7 +123,7 @@ This SDD depends on SDD-001 being completed first. The file `modules/claude-comm
 ### Decisions / Decisioni
 
 1. Added `/fd-arch-review` as a new subsection between Gate 1 and Gate 2 in review-process.md, clearly marked as "(optional)" in the workflow diagram
-2. Skipped E2E smoke test of `forgia skill fd-arch-review FD-002` — this requires Claude CLI to be available and would execute the full analysis. Build + skill listing is sufficient verification for wiring.
+2. Skipped E2E smoke test of `forgia skill fd-arch-review FD-003` — this requires Claude CLI to be available and would execute the full analysis. Build + skill listing is sufficient verification for wiring.
 3. No Go code was modified — confirmed `inferCategory()` in `embedded.go` maps `fd-` prefix to `CategoryFD` automatically
 
 ### Output

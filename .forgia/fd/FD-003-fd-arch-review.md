@@ -1,7 +1,7 @@
 ---
-id: "FD-002"
+id: "FD-003"
 title: "/fd-arch-review — architecture review with pattern detection"
-status: complete
+status: closed
 priority: medium
 effort: medium
 impact: medium
@@ -14,7 +14,7 @@ tags: ["phase:2-core"]
 upstream_issue: "Deepzima/forgia#22"
 ---
 
-# FD-002: /fd-arch-review — architecture review with pattern detection
+# FD-003: /fd-arch-review — architecture review with pattern detection
 
 ## Problem / Problema
 
@@ -92,7 +92,7 @@ sequenceDiagram
     participant Vault as .forgia/ Vault
     participant Codebase as Project Codebase
 
-    User->>ArchReview: /fd-arch-review FD-002
+    User->>ArchReview: /fd-arch-review FD-003
     ArchReview->>Vault: Read FD file (architecture section, Mermaid diagrams)
     ArchReview->>Vault: Read constitution, dev-guide (SOLID, clean-code, patterns, lang)
     ArchReview->>Vault: Read guardrails/deny.toml
