@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ============================================================
+# DEPRECATED — Use the Go binary instead:
+#   go install github.com/Deepzima/forgia/cmd/forgia@latest
+#   Or: mise run go:build && build/forgia <command>
+#
+# This Bash CLI will be removed in a future release.
+# ============================================================
+echo "WARNING: bin/forgia is DEPRECATED. Use the Go binary: build/forgia or go install github.com/Deepzima/forgia/cmd/forgia@latest" >&2
+echo "" >&2
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VAULT_DIR=".forgia"
 
