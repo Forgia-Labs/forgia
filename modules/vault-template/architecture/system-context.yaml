@@ -1,0 +1,15 @@
+# C4 Level 1: System Context
+# Defines the system boundary, external actors, and high-level interactions.
+# This is the highest-level view of the architecture.
+
+name: ""          # system name
+description: ""   # what the system does (one sentence)
+
+actors:
+  - name: ""
+    type: ""          # person | system
+    description: ""   # who/what this actor is
+    interactions:
+      - target: ""        # which part of the system this actor interacts with
+        protocol: ""      # http | grpc | event | cli | file
+        description: ""   # what the interaction does

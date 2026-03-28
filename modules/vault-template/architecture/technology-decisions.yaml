@@ -1,0 +1,13 @@
+# Technology Decisions (ADR-style)
+# Records of technology choices: language, database, protocols, frameworks.
+# Each decision should explain the context, alternatives considered, and rationale.
+
+decisions:
+  - id: ""              # e.g. TD-001
+    title: ""           # short description of the decision
+    status: ""          # proposed | accepted | deprecated | superseded
+    date: ""            # YYYY-MM-DD
+    context: ""         # why this decision was needed
+    decision: ""        # what was decided
+    alternatives: []    # other options considered
+    consequences: []    # trade-offs and implications

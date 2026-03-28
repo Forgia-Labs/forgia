@@ -1,0 +1,25 @@
+# Bounded Context Template
+# Copy this file as contexts/<context-name>.yaml and fill in the fields.
+# Each bounded context represents a distinct domain area with clear boundaries.
+
+name: ""
+responsibilities: []    # what this context owns (list of strings)
+
+ubiquitous_language:
+  - term: ""
+    meaning: ""
+
+interfaces:
+  - with: ""            # name of the other bounded context
+    protocol: ""        # http | grpc | event | shared-db
+    contract: ""        # reference to contract definition (e.g. proto file, OpenAPI)
+    direction: ""       # inbound | outbound | bidirectional
+
+dependencies:
+  depends_on: []        # contexts this one depends on
+  depended_by: []       # contexts that depend on this one
+
+status:
+  reviewed: false       # has this context been reviewed by a human?
+  fd_created: false     # has an FD been created for this context?
+  fd_completed: false   # has the FD been completed?

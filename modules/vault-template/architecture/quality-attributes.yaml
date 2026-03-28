@@ -1,0 +1,10 @@
+# Quality Attributes
+# Non-functional requirements: latency, uptime, security targets, scalability.
+# Each attribute should have a measurable target and a rationale.
+
+attributes:
+  - name: ""            # e.g. latency, availability, security
+    description: ""     # what this attribute means for the system
+    target: ""          # measurable goal (e.g. "p99 < 200ms", "99.9% uptime")
+    priority: ""        # critical | high | medium | low
+    rationale: ""       # why this target was chosen

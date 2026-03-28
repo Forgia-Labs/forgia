@@ -1,0 +1,9 @@
+# Constraints
+# Budget, team, timeline, compliance constraints.
+# These are human-filled and represent hard limits on the project.
+
+constraints:
+  - name: ""            # short identifier
+    type: ""            # budget | team | timeline | compliance | technical
+    description: ""     # what the constraint is
+    impact: ""          # how this affects architecture decisions

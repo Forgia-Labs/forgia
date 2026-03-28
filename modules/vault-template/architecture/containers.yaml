@@ -1,0 +1,10 @@
+# C4 Level 2: Container Diagram
+# Lists services/processes, their tech stack, and inter-container communication.
+
+containers:
+  - name: ""
+    technology: ""        # e.g. Go, Python, PostgreSQL
+    description: ""       # what this container does
+    bounded_context: ""   # links to contexts/<name>.yaml
+    ports: []             # exposed ports (e.g. ["8080", "443"])
+    depends_on: []        # other containers this one depends on
