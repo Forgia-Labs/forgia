@@ -166,8 +166,10 @@ sequenceDiagram
 - [ ] `forgia exec` closes matching Beads task on successful SDD completion
 - [ ] OpenHands runner implemented and functional (pulls image, mounts workspace, runs SDD)
 - [ ] Knowledge layer integrated into init (auto-index), status (stats), and doctor (health)
-- [ ] All existing bash E2E tests pass against the Go binary
-- [ ] `bin/forgia` is removed from the repository
+- [ ] Go E2E tests cover all ~215 assertions from bash E2E tests (6 files) before bash tests are removed
+- [ ] All Go E2E tests pass against the Go binary
+- [ ] `bin/forgia` is removed from the repository (only after E2E parity verified)
+- [ ] Bash E2E tests (`tests/e2e*.sh`) removed only after Go equivalents confirmed
 - [ ] README, CLAUDE.md, mise tasks, and CI workflows updated to reference only the Go binary
 - [ ] Beads and knowledge integrations degrade gracefully when tools are not installed
 

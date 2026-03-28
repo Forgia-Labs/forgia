@@ -218,6 +218,41 @@ Only scope, nothing else.
 	return path
 }
 
+func assertFileContains(t *testing.T, path, substr string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Errorf("read %s: %v", path, err)
+		return
+	}
+	if !strings.Contains(string(data), substr) {
+		t.Errorf("file %s does not contain %q", filepath.Base(path), substr)
+	}
+}
+
+func assertFileNotOverwritten(t *testing.T, path, marker string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Errorf("read %s: %v", path, err)
+		return
+	}
+	if string(data) != marker {
+		t.Errorf("file %s was overwritten: got %q, want %q", filepath.Base(path), string(data), marker)
+	}
+}
+
+// writeFDWithAuthor creates a fixture FD with author field.
+func writeFDWithAuthor(t *testing.T, dir, id, title, status, author string) {
+	t.Helper()
+	fdDir := filepath.Join(dir, ".forgia", "fd")
+	os.MkdirAll(fdDir, 0o755)
+	content := "---\nid: " + id + "\ntitle: \"" + title + "\"\nstatus: " + status + "\nauthor: \"" + author + "\"\n---\n# " + id + "\n"
+	if err := os.WriteFile(filepath.Join(fdDir, id+"-test.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write FD fixture: %v", err)
+	}
+}
+
 // --- E2E Tests ---
 
 func TestE2E_Init(t *testing.T) {
@@ -526,4 +561,368 @@ func TestE2E_TemplateContent(t *testing.T) {
 			t.Errorf("config.toml missing %q", section)
 		}
 	}
+}
+
+// --- Init: architecture idempotency (from e2e.sh) ---
+
+func TestE2E_Init_ArchitectureIdempotent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	// Modify an architecture file — re-init should NOT overwrite.
+	archPath := filepath.Join(dir, ".forgia", "architecture", "system-context.yaml")
+	os.WriteFile(archPath, []byte("# Custom content"), 0o644)
+
+	initVault(t, dir) // second init
+	assertFileNotOverwritten(t, archPath, "# Custom content")
+}
+
+// --- Init: .gitignore (from e2e-multi-eng.sh) ---
+
+func TestE2E_Init_GitIgnore(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	giPath := filepath.Join(dir, ".forgia", ".gitignore")
+	assertFileExists(t, giPath)
+	assertFileContains(t, giPath, "logs/")
+	assertFileContains(t, giPath, "run/")
+	assertFileContains(t, giPath, ".beads/")
+	assertFileContains(t, giPath, "*.pid")
+}
+
+func TestE2E_Init_GitIgnoreIdempotent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	giPath := filepath.Join(dir, ".forgia", ".gitignore")
+	os.WriteFile(giPath, []byte("# custom"), 0o644)
+
+	initVault(t, dir)
+	assertFileNotOverwritten(t, giPath, "# custom")
+}
+
+// --- Init: CODEOWNERS (from e2e-multi-eng.sh) ---
+
+func TestE2E_Init_NoCODEOWNERS_WithoutGithubDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	coPath := filepath.Join(dir, ".github", "CODEOWNERS")
+	if _, err := os.Stat(coPath); err == nil {
+		t.Error("CODEOWNERS should not be created when .github/ is missing")
+	}
+}
+
+func TestE2E_Init_CODEOWNERS_WithGithubDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".github"), 0o755)
+
+	initVault(t, dir)
+
+	coPath := filepath.Join(dir, ".github", "CODEOWNERS")
+	assertFileExists(t, coPath)
+	assertFileContains(t, coPath, "constitution.md")
+	assertFileContains(t, coPath, "guardrails/")
+	assertFileContains(t, coPath, "architecture/")
+}
+
+func TestE2E_Init_CODEOWNERSIdempotent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".github"), 0o755)
+
+	initVault(t, dir)
+
+	coPath := filepath.Join(dir, ".github", "CODEOWNERS")
+	os.WriteFile(coPath, []byte("# custom owners"), 0o644)
+
+	// Remove .forgia to force re-init, keep .github/CODEOWNERS
+	os.RemoveAll(filepath.Join(dir, ".forgia"))
+	initVault(t, dir)
+
+	assertFileNotOverwritten(t, coPath, "# custom owners")
+}
+
+// --- Init: guardrails content (from e2e-guardrails.sh) ---
+
+func TestE2E_Init_GuardrailsContent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	deny := filepath.Join(dir, ".forgia", "guardrails", "deny.toml")
+	assertFileExists(t, deny)
+
+	// Structure.
+	assertFileContains(t, deny, "[read]")
+	assertFileContains(t, deny, "[execute]")
+	assertFileContains(t, deny, "[write]")
+
+	// Read patterns.
+	assertFileContains(t, deny, ".env")
+	assertFileContains(t, deny, "*.pem")
+	assertFileContains(t, deny, "*.key")
+	assertFileContains(t, deny, ".aws/credentials")
+	assertFileContains(t, deny, ".ssh/id_")
+	assertFileContains(t, deny, ".gnupg/")
+	assertFileContains(t, deny, ".password-store/")
+	assertFileContains(t, deny, "kubeconfig")
+	assertFileContains(t, deny, ".tfstate")
+	assertFileContains(t, deny, ".env.example") // negation pattern
+
+	// Execute patterns.
+	assertFileContains(t, deny, "cat ~/.ssh/id_")
+	assertFileContains(t, deny, "gpg --export-secret")
+	assertFileContains(t, deny, "pass show")
+
+	// Write patterns.
+	assertFileContains(t, deny, "constitution.md")
+	assertFileContains(t, deny, "config.toml")
+	assertFileContains(t, deny, "deny.toml")
+
+	// Ignore file.
+	ignore := filepath.Join(dir, ".forgia", "guardrails", "ignore")
+	assertFileExists(t, ignore)
+	assertFileContains(t, ignore, ".env")
+	assertFileContains(t, ignore, "node_modules/")
+	assertFileContains(t, ignore, ".DS_Store")
+}
+
+func TestE2E_Init_GuardrailsIdempotent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	denyPath := filepath.Join(dir, ".forgia", "guardrails", "deny.toml")
+	os.WriteFile(denyPath, []byte("# Custom deny"), 0o644)
+	ignorePath := filepath.Join(dir, ".forgia", "guardrails", "ignore")
+	os.WriteFile(ignorePath, []byte("# Custom ignore"), 0o644)
+
+	initVault(t, dir)
+
+	assertFileNotOverwritten(t, denyPath, "# Custom deny")
+	assertFileNotOverwritten(t, ignorePath, "# Custom ignore")
+}
+
+// --- Init: config.toml sections (from e2e-beads-autospec.sh) ---
+
+func TestE2E_Init_ConfigSections(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	cfg := filepath.Join(dir, ".forgia", "config.toml")
+	assertFileContains(t, cfg, "[runner]")
+	assertFileContains(t, cfg, "[runner.claude]")
+	assertFileContains(t, cfg, "[runner.openhands]")
+	assertFileContains(t, cfg, "[watcher]")
+	assertFileContains(t, cfg, "[beads]")
+	assertFileContains(t, cfg, "[knowledge]")
+	assertFileContains(t, cfg, "auto_approve")
+	assertFileContains(t, cfg, "max_turns")
+	assertFileContains(t, cfg, "debounce")
+	assertFileContains(t, cfg, `provider = "codebase-memory-mcp"`)
+	assertFileContains(t, cfg, "auto_index")
+}
+
+// --- Init: constitution security (from e2e-guardrails.sh) ---
+
+func TestE2E_Init_ConstitutionSecurity(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	c := filepath.Join(dir, ".forgia", "constitution.md")
+	assertFileContains(t, c, "Security")
+	assertFileContains(t, c, "guardrails")
+	assertFileContains(t, c, "deny.toml")
+	assertFileContains(t, c, "fail-closed")
+}
+
+// --- Init: FD template Mermaid (from e2e-beads-autospec.sh) ---
+
+func TestE2E_Init_FDTemplateMermaid(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	fd := filepath.Join(dir, ".forgia", "fd", "_templates", "fd-template.md")
+	assertFileContains(t, fd, "Integration Context")
+	assertFileContains(t, fd, "Data Flow")
+	assertFileContains(t, fd, "sequenceDiagram")
+	assertFileContains(t, fd, "flowchart")
+	assertFileContains(t, fd, "OBBLIGATORIO")
+	assertFileContains(t, fd, "author:")
+	assertFileContains(t, fd, "{{AUTHOR}}")
+	assertFileContains(t, fd, "mermaid")
+	assertFileContains(t, fd, "Verification")
+}
+
+// --- Init: YAML SDD template (from e2e-beads-autospec.sh) ---
+
+func TestE2E_Init_YAMLSDDTemplate(t *testing.T) {
+	t.Parallel()
+
+	// Check the source template in modules/ (not the scaffolded one).
+	root := findProjectRoot()
+	yamlPath := filepath.Join(root, "modules", "vault-template", "sdd", "_templates", "sdd-template.yaml")
+	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
+		t.Skip("YAML SDD template not found in modules/")
+	}
+
+	for _, section := range []string{
+		"meta:", "scope:", "interfaces:", "constraints:", "best_practices:",
+		"test_requirements:", "acceptance_criteria:", "context:", "constitution_check:",
+		"work_log:", "bd_task_id:", "retrospective:",
+	} {
+		assertFileContains(t, yamlPath, section)
+	}
+}
+
+// --- Status: author display (from e2e-multi-eng.sh) ---
+
+func TestE2E_Status_Author(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	writeFDWithAuthor(t, dir, "FD-001", "Auth Feature", "planned", "ferruvich")
+
+	output, code := runForgia(t, dir, "status")
+	assertExitCode(t, code, 0)
+	assertContains(t, output, "ferruvich")
+}
+
+func TestE2E_Status_NoAuthorGraceful(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	writeFD(t, dir, "FD-002", "No Author Feature", "planned")
+
+	output, code := runForgia(t, dir, "status")
+	assertExitCode(t, code, 0)
+	assertContains(t, output, "FD-002")
+	assertContains(t, output, "No Author Feature")
+}
+
+// --- Validate: FD directory batch (from e2e-beads-autospec.sh) ---
+
+func TestE2E_Validate_FDDirectory(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	fdID := "FD-TEST"
+	writeFD(t, dir, fdID, "Test", "planned")
+	writeValidSDD(t, dir, fdID)
+
+	// Valid FD directory.
+	_, code := runForgia(t, dir, "validate", fdID)
+	assertExitCode(t, code, 0)
+
+	// Add an invalid SDD — batch should fail.
+	writeInvalidSDD(t, dir, fdID)
+	_, code = runForgia(t, dir, "validate", fdID)
+	if code == 0 {
+		t.Error("expected non-zero exit for FD directory with invalid SDD")
+	}
+}
+
+// --- Batch: missing FD directory (from e2e-beads-autospec.sh) ---
+
+func TestE2E_Batch_MissingFD(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	_, code := runForgia(t, dir, "batch", "FD-NOPE")
+	if code == 0 {
+		t.Error("expected non-zero exit for batch on nonexistent FD")
+	}
+}
+
+// --- Doctor: missing guardrails (from e2e-guardrails.sh) ---
+
+func TestE2E_Doctor_MissingGuardrails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	os.Remove(filepath.Join(dir, ".forgia", "guardrails", "deny.toml"))
+
+	output, code := runForgia(t, dir, "doctor")
+	assertExitCode(t, code, 0) // doctor always exits 0
+	// Should report issue about missing guardrails.
+	assertContains(t, output, "guardrails")
+}
+
+// --- Doctor: checks fswatch, yq, beads (from e2e-beads-autospec.sh) ---
+
+func TestE2E_Doctor_ToolChecks(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	output, code := runForgia(t, dir, "doctor")
+	assertExitCode(t, code, 0)
+	assertContains(t, output, "fswatch")
+	assertContains(t, output, "yq")
+}
+
+// --- Runner: default is claude (from e2e.sh) ---
+
+func TestE2E_Init_DefaultRunnerClaude(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	cfg, err := os.ReadFile(filepath.Join(dir, ".forgia", "config.toml"))
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	assertContains(t, string(cfg), `default = "claude"`)
+}
+
+// --- Slash command content: fd-review (from e2e-guardrails.sh, e2e-beads-autospec.sh) ---
+
+func TestE2E_SlashCommandContent(t *testing.T) {
+	t.Parallel()
+	root := findProjectRoot()
+
+	// fd-review checks security and guardrails.
+	reviewPath := filepath.Join(root, "modules", "claude-commands", "fd-review.md")
+	assertFileContains(t, reviewPath, "Security")
+	assertFileContains(t, reviewPath, "guardrails")
+	assertFileContains(t, reviewPath, "plaintext")
+	assertFileContains(t, reviewPath, "Integration Context")
+	assertFileContains(t, reviewPath, "Data Flow")
+
+	// fd-sdd loads guardrails.
+	sddPath := filepath.Join(root, "modules", "claude-commands", "fd-sdd.md")
+	assertFileContains(t, sddPath, "guardrails")
+	assertFileContains(t, sddPath, "deny.toml")
+	assertFileContains(t, sddPath, "Beads")
+}
+
+// --- Knowledge: config and graceful skip (from e2e-knowledge-config.sh, e2e-codebase-memory.sh) ---
+// Note: tests requiring mock codebase-memory-mcp in PATH are covered by
+// unit tests in internal/knowledge/. These E2E tests verify config presence only.
+
+func TestE2E_Init_KnowledgeConfig(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	cfg := filepath.Join(dir, ".forgia", "config.toml")
+	assertFileContains(t, cfg, "[knowledge]")
+	assertFileContains(t, cfg, `provider = "codebase-memory-mcp"`)
+	assertFileContains(t, cfg, "auto_index = true")
+	assertFileContains(t, cfg, "auto_sync = true")
 }
