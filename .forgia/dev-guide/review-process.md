@@ -5,9 +5,9 @@
 Forgia enforces 3 gates before code reaches production:
 
 ```
-FD Review ──→ SDD Generation ──→ Implementation ──→ Verification ──→ Close
- /fd-review    /fd-sdd            agent executes     /fd-verify       /fd-close
- GATE 1                                              GATE 2           GATE 3
+FD Review ──→ Arch Review ──→ SDD Generation ──→ Implementation ──→ Verification ──→ Close
+ /fd-review    /fd-arch-review   /fd-sdd            agent executes     /fd-verify       /fd-close
+ GATE 1        (optional)                                               GATE 2           GATE 3
 ```
 
 ### Gate 1: FD Review (`/fd-review`)
@@ -18,6 +18,15 @@ Before any SDD can be generated:
 - Architecture diagram present
 - Interfaces between components defined
 - Constitution compliance checked
+
+### Architecture Review (`/fd-arch-review`) — Optional
+
+After FD approval, before SDD generation:
+- Run `/fd-arch-review FD-NNN` to analyze the proposed architecture against the actual codebase
+- Produces a structured report: pattern analysis, anti-pattern detection, dependency graph, SOLID compliance, recommendations
+- **Advisory, not a gate** — the report informs but does not block `/fd-sdd`
+- Recommended for FDs that introduce new components, change interfaces, or touch multiple packages
+- Can be run repeatedly during FD authoring for iterative improvement
 
 ### Gate 2: Verification (`/fd-verify`)
 
