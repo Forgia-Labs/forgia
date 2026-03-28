@@ -1,7 +1,7 @@
 ---
 id: "FD-004"
 title: "Go CLI feature parity with bin/forgia bash CLI"
-status: in-progress
+status: closed
 priority: high
 effort: high
 impact: high
