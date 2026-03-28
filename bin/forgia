@@ -13,14 +13,15 @@ Incantesimi (comandi):
   status                        Mostra la dashboard FD + SDD
   doctor                        Verifica salute (docker, openhands, vault)
   validate <sdd-file|FD-NNN>    Valida un SDD o tutti gli SDD di un FD
-  exec <sdd-file> [--runner=X]  Esegui un SDD (runner: claude|openhands)
-  batch <FD-NNN> [--runner=X]   Esegui tutti gli SDD di un FD
+  exec <sdd-file> [opts]        Esegui un SDD (runner: claude|openhands)
+  batch <FD-NNN> [opts]         Esegui tutti gli SDD di un FD
   watch <FD-NNN> [--runner=X]   Osserva e esegui nuovi SDD automaticamente
 
-Runner:
+Options (exec/batch):
   --runner=claude               Claude Code sub-agent (usa Max subscription)
   --runner=openhands            OpenHands container (usa API key)
-  (default: da .forgia/config.toml)
+  --dry-run                     Simula esecuzione senza modificare file
+  (default runner: da .forgia/config.toml)
 
 USAGE
 }
@@ -81,6 +82,111 @@ strip_runner_arg() {
     [[ "$arg" =~ ^--runner= ]] || args+=("$arg")
   done
   echo "${args[@]}"
+}
+
+# Parse --dry-run from arguments
+parse_dry_run_arg() {
+  for arg in "$@"; do
+    if [[ "$arg" == "--dry-run" ]]; then
+      echo "true"
+      return
+    fi
+  done
+  echo ""
+}
+
+# Remove --dry-run from arguments
+strip_dry_run_arg() {
+  local args=()
+  for arg in "$@"; do
+    [[ "$arg" == "--dry-run" ]] || args+=("$arg")
+  done
+  echo "${args[@]}"
+}
+
+# --- dry-run invocation ---
+
+# Build system context for Claude invocation (shared with runners)
+_build_system_context() {
+  local ctx=""
+  if [[ -f "$VAULT_DIR/constitution.md" ]]; then
+    ctx+="## Constitution"$'\n'
+    ctx+="$(cat "$VAULT_DIR/constitution.md")"$'\n\n'
+  fi
+  if [[ -f "$VAULT_DIR/guardrails/deny.toml" ]]; then
+    ctx+="## Security Guardrails — MANDATORY"$'\n'
+    ctx+="$(cat "$VAULT_DIR/guardrails/deny.toml")"$'\n'
+    ctx+="NEVER read secrets, NEVER execute key export commands, NEVER write to .env or forgia meta files."$'\n\n'
+  fi
+  if [[ -d "$VAULT_DIR/dev-guide/principles" ]]; then
+    for f in "$VAULT_DIR/dev-guide/principles/"*.md; do
+      [[ -f "$f" ]] && ctx+="$(cat "$f")"$'\n\n'
+    done
+  fi
+  if [[ -d "$VAULT_DIR/dev-guide/lang" ]]; then
+    for f in "$VAULT_DIR/dev-guide/lang/"*.md; do
+      [[ -f "$f" ]] && ctx+="$(cat "$f")"$'\n\n'
+    done
+  fi
+  echo "$ctx"
+}
+
+# Run dry-run simulation for a single SDD file.
+# Prints the feasibility report to stdout.
+# Returns 0 for GO/CAUTION, 1 for NO-GO.
+run_dry_run() {
+  local sdd_file="$1"
+  local slash_cmd="$ROOT_DIR/modules/claude-commands/sdd-dry-run.md"
+
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "Errore: 'claude' CLI non trovato. Installa Claude Code prima." >&2
+    return 1
+  fi
+
+  if [[ ! -f "$slash_cmd" ]]; then
+    echo "Errore: sdd-dry-run.md non trovato — esegui prima SDD-001 di FD-012" >&2
+    return 1
+  fi
+
+  if [[ ! -f "$sdd_file" ]]; then
+    echo "Errore: SDD non trovato: $sdd_file" >&2
+    return 1
+  fi
+
+  local sdd_id
+  sdd_id=$(grep '^id:' "$sdd_file" | head -1 | sed 's/id: *//;s/"//g')
+
+  local system_context
+  system_context=$(_build_system_context)
+
+  local task_prompt="Run /sdd-dry-run on ${sdd_file}. Read the slash command instructions from ${slash_cmd} and follow them exactly."
+
+  # Log directory
+  mkdir -p "$VAULT_DIR/logs"
+  local log_file
+  log_file="$VAULT_DIR/logs/dry-run-${sdd_id}-$(date +%Y-%m-%dT%H:%M:%S).log"
+
+  echo "→ Dry-run: simulazione $sdd_id..."
+
+  local output
+  output=$(claude --append-system-prompt "$system_context" -p "$task_prompt" 2>&1)
+
+  # Save log
+  echo "$output" > "$log_file"
+  echo "  Log: $log_file"
+
+  # Print report
+  echo ""
+  echo "$output"
+
+  # Parse feasibility
+  local feasibility
+  feasibility=$(echo "$output" | grep -i 'Feasibility:' | head -1 | sed 's/.*Feasibility: *//' | tr -d '[:space:]')
+
+  if [[ "$feasibility" == "NO-GO" ]]; then
+    return 1
+  fi
+  return 0
 }
 
 # --- [knowledge] config parsing ---
@@ -845,9 +951,32 @@ cmd_validate() {
 # --- exec ---
 
 cmd_exec() {
-  local sdd_file="${1:?Usage: forgia exec <sdd-file> [--runner=claude|openhands]}"
+  local sdd_file="${1:?Usage: forgia exec <sdd-file> [--runner=claude|openhands] [--dry-run]}"
+  local dry_run
+  dry_run=$(parse_dry_run_arg "$@")
   local runner
   runner=$(resolve_runner "$(parse_runner_arg "$@")")
+
+  # --- dry-run mode ---
+  if [[ "$dry_run" == "true" ]]; then
+    if [[ -n "$(parse_runner_arg "$@")" ]]; then
+      echo "Nota: --runner ignorato durante dry-run (la simulazione usa Claude)"
+    fi
+
+    # Pre-exec validation
+    local validate_script="$ROOT_DIR/modules/runners/validate-sdd.sh"
+    if ! "$validate_script" "$sdd_file"; then
+      echo ""
+      echo "Errore: validazione SDD fallita — correggi prima di proseguire" >&2
+      exit 1
+    fi
+    echo ""
+
+    run_dry_run "$sdd_file"
+    return $?
+  fi
+
+  # --- normal execution ---
   local script
   script=$(get_runner_script "$runner")
 
@@ -896,7 +1025,9 @@ cmd_exec() {
 # --- batch ---
 
 cmd_batch() {
-  local fd_id="${1:?Usage: forgia batch <FD-NNN> [--runner=claude|openhands]}"
+  local fd_id="${1:?Usage: forgia batch <FD-NNN> [--runner=claude|openhands] [--dry-run]}"
+  local dry_run
+  dry_run=$(parse_dry_run_arg "$@")
   local runner
   runner=$(resolve_runner "$(parse_runner_arg "$@")")
   local sdd_dir="$VAULT_DIR/sdd/$fd_id"
@@ -921,6 +1052,40 @@ cmd_batch() {
     exit 0
   fi
 
+  # --- dry-run mode ---
+  if [[ "$dry_run" == "true" ]]; then
+    if [[ -n "$(parse_runner_arg "$@")" ]]; then
+      echo "Nota: --runner ignorato durante dry-run (la simulazione usa Claude)"
+    fi
+
+    echo "=== FD Dry Run: $fd_id (${#sdd_files[@]} SDDs) ==="
+    echo ""
+
+    local go_count=0 nogo_count=0
+    for sdd_file in "${sdd_files[@]}"; do
+      local sid
+      sid=$(grep '^id:' "$sdd_file" | head -1 | sed 's/id: *//')
+      echo "--- $sid ---"
+
+      if run_dry_run "$sdd_file"; then
+        go_count=$((go_count + 1))
+      else
+        nogo_count=$((nogo_count + 1))
+      fi
+      echo ""
+    done
+
+    echo "=== Dry Run Summary ==="
+    echo "  GO/CAUTION: $go_count"
+    echo "  NO-GO:      $nogo_count"
+
+    if (( nogo_count > 0 )); then
+      return 1
+    fi
+    return 0
+  fi
+
+  # --- normal execution ---
   echo "=== Forgia Batch Execution ==="
   echo "  FD:     $fd_id"
   echo "  Runner: $runner"
