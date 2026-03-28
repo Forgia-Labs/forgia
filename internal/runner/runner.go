@@ -4,7 +4,6 @@ package runner
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Deepzima/forgia/internal/vault"
@@ -54,8 +53,4 @@ type ExecResult struct {
 	TeamRole         string    `json:"team_role,omitempty"` // lead, teammate
 }
 
-// Resolve picks the right runner from config.
-func Resolve(runnerName string) (Runner, error) {
-	// TODO: implement runner resolution
-	return nil, fmt.Errorf("runner.Resolve(%q): not yet implemented", runnerName)
-}
+// Resolve is implemented in claude.go.
