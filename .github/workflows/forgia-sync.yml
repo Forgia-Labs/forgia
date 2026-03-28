@@ -6,14 +6,15 @@ name: Forgia Board Sync
 # Requires: GH_PROJECT_TOKEN secret with project:read, project:write, contents:write scopes.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.forgia/fd/**'
-      - '.forgia/sdd/**'
-      - '.forgia/architecture/**'
-  schedule:
-    - cron: '0 */6 * * *' # pull board changes every 6 hours
+  # Push trigger disabled until GH_PROJECT_TOKEN secret is configured.
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - '.forgia/fd/**'
+  #     - '.forgia/sdd/**'
+  #     - '.forgia/architecture/**'
+  # schedule:
+  #   - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       direction:
