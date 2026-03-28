@@ -135,7 +135,11 @@ func execSDD(cmd *cobra.Command, sddFile string) error {
 		resolvedRunner = "claude"
 	}
 
-	r, err := runner.Resolve(resolvedRunner)
+	var ohCfg config.OpenHandsConfig
+	if cfg != nil {
+		ohCfg = cfg.Runner.OpenHands
+	}
+	r, err := runner.Resolve(resolvedRunner, ohCfg)
 	if err != nil {
 		return err
 	}
