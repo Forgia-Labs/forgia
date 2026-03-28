@@ -46,6 +46,10 @@ Given FD identifier: $ARGUMENTS
 5. If ALL checks pass:
    - Set `reviewed: true` and `reviewer: "claude"` in frontmatter
    - Update status to "approved"
+   - **Competitive FD check**: if the FD has `competes_with` entries, warn the user:
+     "ATTENZIONE: Approvare FD-NNN rejecta automaticamente i competitor: FD-XXX, FD-YYY. Procedere? (Y/n)"
+     If confirmed, set competitor FDs to `status: rejected`, `superseded_by: FD-NNN`, `rejected_reason: "Superseded by FD-NNN after review"`.
+     If the user declines, set `reviewed: true` but keep `status: planned` (reviewed but not yet approved — team decision pending).
    - Report: "APPROVATO — FD pronto per generazione SDD. Usa /fd-sdd FD-NNN"
 
 6. If ANY check fails:
