@@ -10,22 +10,17 @@ import (
 // as rejected with the given reason. Sets superseded_by to the approved FD's ID.
 // Idempotent: already-rejected FDs are skipped.
 func (v *FileVault) RejectCompetitors(ctx context.Context, approvedID, reason string) (int, error) {
-	approved, err := v.GetFD(ctx, approvedID)
+	// Use FindCompetitors to catch all competitors (bidirectional competes_with + shared upstream_issue).
+	competitors, err := v.FindCompetitors(ctx, approvedID)
 	if err != nil {
-		return 0, fmt.Errorf("get approved FD: %w", err)
+		return 0, fmt.Errorf("find competitors: %w", err)
 	}
-
-	if len(approved.CompetesWith) == 0 {
-		return 0, nil // no competitors
+	if len(competitors) == 0 {
+		return 0, nil
 	}
 
 	rejected := 0
-	for _, competitorID := range approved.CompetesWith {
-		fd, err := v.GetFD(ctx, competitorID)
-		if err != nil {
-			slog.WarnContext(ctx, "competitor FD not found", "id", competitorID, "error", err)
-			continue
-		}
+	for _, fd := range competitors {
 
 		// Skip if already rejected.
 		if fd.Status == FDRejected {
@@ -37,11 +32,11 @@ func (v *FileVault) RejectCompetitors(ctx context.Context, approvedID, reason st
 		fd.SupersededBy = approvedID
 
 		if err := v.UpdateFD(ctx, fd); err != nil {
-			return rejected, fmt.Errorf("reject FD %s: %w", competitorID, err)
+			return rejected, fmt.Errorf("reject FD %s: %w", fd.ID, err)
 		}
 
 		slog.InfoContext(ctx, "competitor rejected",
-			"rejected", competitorID, "superseded_by", approvedID)
+			"rejected", fd.ID, "superseded_by", approvedID)
 		rejected++
 	}
 

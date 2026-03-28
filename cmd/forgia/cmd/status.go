@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/Deepzima/forgia/internal/vault"
@@ -52,13 +54,25 @@ func printDashboard(ctx context.Context, v vault.Vault) error {
 	fmt.Fprintf(w, "ID\tTITLE\tSTATUS\tPRIORITY\tAUTHOR\n")
 	fmt.Fprintf(w, "──\t─────\t──────\t────────\t──────\n")
 
-	// Group FDs by upstream_issue for competitive display.
-	groups := make(map[string][]*vault.FD) // upstream_issue → FDs
+	// Group competing FDs together.
+	// Key: upstream_issue if set, otherwise first competes_with ID as group key.
+	groups := make(map[string][]*vault.FD)
+	grouped := make(map[string]bool) // FD IDs already in a group
 	var ungrouped []*vault.FD
+
 	for _, fd := range fds {
-		if fd.UpstreamIssue != "" && len(fd.CompetesWith) > 0 {
-			groups[fd.UpstreamIssue] = append(groups[fd.UpstreamIssue], fd)
-		} else {
+		if len(fd.CompetesWith) > 0 {
+			key := fd.UpstreamIssue
+			if key == "" {
+				key = "competing:" + fd.ID // synthetic key for FDs without upstream_issue
+			}
+			groups[key] = append(groups[key], fd)
+			grouped[fd.ID] = true
+		}
+	}
+
+	for _, fd := range fds {
+		if !grouped[fd.ID] {
 			ungrouped = append(ungrouped, fd)
 		}
 	}
@@ -68,10 +82,21 @@ func printDashboard(ctx context.Context, v vault.Vault) error {
 		printFDRow(ctx, w, v, fd, "")
 	}
 
-	// Print competitive groups.
-	for issue, group := range groups {
+	// Print competitive groups (sorted keys for deterministic output).
+	sortedKeys := make([]string, 0, len(groups))
+	for k := range groups {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, key := range sortedKeys {
+		group := groups[key]
 		if len(group) > 1 {
-			fmt.Fprintf(w, "\t── competing for %s ──\t\t\t\n", issue)
+			label := key
+			if strings.HasPrefix(label, "competing:") {
+				label = "linked FDs"
+			}
+			fmt.Fprintf(w, "\t── competing for %s ──\t\t\t\n", label)
 		}
 		for _, fd := range group {
 			prefix := ""
