@@ -15,3 +15,7 @@ modules/openhands/config.toml
 
 # Go build output
 build/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
