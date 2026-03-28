@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Deepzima/forgia/internal/beads"
 	"github.com/Deepzima/forgia/internal/config"
 	"github.com/Deepzima/forgia/internal/guardrails"
 	"github.com/Deepzima/forgia/internal/runner"
@@ -164,6 +165,20 @@ func execSDD(cmd *cobra.Command, sddFile string) error {
 		fmt.Printf("  SDD:      %s\n", result.SDD)
 		fmt.Printf("  Duration: %ds\n", result.DurationSecs)
 		fmt.Printf("  Status:   %s\n", result.Status)
+
+		// Ensure File is set on the result for the JSON report.
+		if result.File == "" {
+			result.File = sddFile
+		}
+
+		// Write JSON execution report.
+		logsDir := filepath.Join(".forgia", "logs")
+		reportPath, reportErr := writeExecReport(result, logsDir)
+		if reportErr != nil {
+			logger.WarnContext(ctx, "failed to write exec report", "error", reportErr)
+		} else {
+			fmt.Printf("  Report:   %s\n", reportPath)
+		}
 	}
 
 	// Update SDD status.
@@ -172,6 +187,10 @@ func execSDD(cmd *cobra.Command, sddFile string) error {
 		if err := v.UpdateSDD(ctx, sdd); err != nil {
 			logger.WarnContext(ctx, "failed to update SDD status", "error", err)
 		}
+
+		// Close matching Beads task.
+		bc := beads.NewClient()
+		closeBeadsTask(ctx, bc, sddID)
 	}
 
 	if execErr != nil {

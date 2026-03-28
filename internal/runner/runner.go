@@ -37,6 +37,7 @@ type ExecOptions struct {
 type ExecResult struct {
 	SDD              string    `json:"sdd"`
 	FD               string    `json:"fd"`
+	File             string    `json:"file"`
 	Runner           string    `json:"runner"`
 	Started          time.Time `json:"started"`
 	Completed        time.Time `json:"completed"`

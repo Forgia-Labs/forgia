@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -46,6 +45,7 @@ func (r *ClaudeRunner) Execute(ctx context.Context, sdd *vault.SDD, opts ExecOpt
 	result := &ExecResult{
 		SDD:     sdd.ID,
 		FD:      sdd.FD,
+		File:    sdd.FilePath,
 		Runner:  "claude",
 		Started: started,
 	}
@@ -102,11 +102,6 @@ func (r *ClaudeRunner) Execute(ctx context.Context, sdd *vault.SDD, opts ExecOpt
 		result.Status = "success"
 		r.logger.InfoContext(ctx, "execution complete", "sdd", sdd.ID, "duration", result.DurationSecs)
 	}
-
-	// Write JSON report.
-	reportFile := filepath.Join(logDir, fmt.Sprintf("exec-%s-%s.json", sdd.ID, started.Format("2006-01-02T15:04:05")))
-	reportData, _ := json.MarshalIndent(result, "", "  ")
-	os.WriteFile(reportFile, reportData, 0o644)
 
 	return result, execErr
 }

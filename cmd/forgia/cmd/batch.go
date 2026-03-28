@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/Deepzima/forgia/internal/beads"
 	"github.com/Deepzima/forgia/internal/runner"
 	"github.com/Deepzima/forgia/internal/vault"
 	"github.com/spf13/cobra"
@@ -72,15 +74,37 @@ var batchCmd = &cobra.Command{
 			return err
 		}
 
+		ctx := cmd.Context()
+		logger := slog.With("command", "batch")
+		logsDir := filepath.Join(".forgia", "logs")
+		bc := beads.NewClient()
+
 		var completed, failed int
 		for _, sddFile := range pendingSDDs {
-			sdd := &vault.SDD{FilePath: sddFile}
-			result, err := r.Execute(cmd.Context(), sdd, runner.ExecOptions{})
-			if err != nil || result.ExitCode != 0 {
+			data, _ := os.ReadFile(sddFile)
+			content := string(data)
+			sddID := strings.Trim(extractFrontmatterValue(content, "id:"), "\"' ")
+			sddFD := strings.Trim(extractFrontmatterValue(content, "fd:"), "\"' ")
+
+			sdd := &vault.SDD{ID: sddID, FD: sddFD, FilePath: sddFile}
+			result, execErr := r.Execute(ctx, sdd, runner.ExecOptions{})
+
+			// Write JSON report for every execution.
+			if result != nil {
+				if result.File == "" {
+					result.File = sddFile
+				}
+				if _, reportErr := writeExecReport(result, logsDir); reportErr != nil {
+					logger.WarnContext(ctx, "failed to write exec report", "sdd", sddID, "error", reportErr)
+				}
+			}
+
+			if execErr != nil || (result != nil && result.ExitCode != 0) {
 				failed++
 				fmt.Fprintf(cmd.ErrOrStderr(), "Avviso: %s fallito\n", sddFile)
 			} else {
 				completed++
+				closeBeadsTask(ctx, bc, sddID)
 			}
 		}
 
