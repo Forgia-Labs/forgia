@@ -12,6 +12,8 @@ import (
 
 	forgia "github.com/Deepzima/forgia"
 	"github.com/Deepzima/forgia/internal/beads"
+	"github.com/Deepzima/forgia/internal/config"
+	"github.com/Deepzima/forgia/internal/knowledge"
 	"github.com/spf13/cobra"
 )
 
@@ -86,6 +88,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Beads init (optional).
 	initBeads(ctx, dir, logger)
+
+	// Knowledge layer init (optional).
+	initKnowledge(ctx, dir, forgiaDir, logger)
 
 	// Summary.
 	fmt.Println()
@@ -189,6 +194,39 @@ func initBeads(ctx context.Context, dir string, logger *slog.Logger) {
 	initCmd.Stderr = os.Stderr
 	if err := initCmd.Run(); err != nil {
 		logger.WarnContext(ctx, "beads init failed (optional)", "error", err)
+	}
+}
+
+// initKnowledge auto-indexes the codebase and creates .mcp.json if codebase-memory-mcp is available.
+func initKnowledge(ctx context.Context, dir, forgiaDir string, logger *slog.Logger) {
+	kc := knowledge.NewClient()
+	if !kc.Available() {
+		logger.InfoContext(ctx, "codebase-memory-mcp not available, skipping knowledge layer")
+		return
+	}
+
+	// Load config to check auto_index setting.
+	cfg, err := config.LoadConfig(ctx, forgiaDir)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to load config for knowledge layer", "error", err)
+		return
+	}
+
+	if cfg.Knowledge.AutoIndex {
+		logger.InfoContext(ctx, "indexing codebase with codebase-memory-mcp")
+		symbols, err := kc.Index(ctx)
+		if err != nil {
+			logger.WarnContext(ctx, "codebase indexing failed (optional)", "error", err)
+		} else {
+			fmt.Printf("  Knowledge: indexed %d symbols\n", symbols)
+		}
+	}
+
+	// Create/merge .mcp.json.
+	if err := knowledge.EnsureMCPJSON(ctx, dir); err != nil {
+		logger.WarnContext(ctx, "failed to create/update .mcp.json", "error", err)
+	} else {
+		logger.InfoContext(ctx, "ensured .mcp.json has codebase-memory-mcp config")
 	}
 }
 
