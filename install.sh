@@ -17,14 +17,20 @@ done
 echo "=== Forgia Installer ==="
 echo ""
 
-# Sanity check
-if [[ ! -f "$REPO_DIR/bin/forgia" ]]; then
-  echo "Error: bin/forgia not found in $REPO_DIR" >&2
-  echo "  Make sure you're running this from the forgia repo root." >&2
+# Sanity check — Go must be installed
+if ! command -v go >/dev/null 2>&1; then
+  echo "Error: Go is required but not installed." >&2
+  echo "  Install Go: https://go.dev/dl/" >&2
   exit 1
 fi
 
-# --- 1. Symlink forgia binary ---
+# --- 1. Build the Go binary ---
+
+echo "→ Building forgia..."
+(cd "$REPO_DIR" && go build -o build/forgia ./cmd/forgia)
+echo "✓ Built: $REPO_DIR/build/forgia"
+
+# --- 2. Symlink forgia binary ---
 
 mkdir -p "$INSTALL_DIR"
 
@@ -38,19 +44,17 @@ if [[ -e "$INSTALL_DIR/forgia" ]] && [[ ! -L "$INSTALL_DIR/forgia" ]]; then
   fi
 fi
 
-ln -sf "$REPO_DIR/bin/forgia" "$INSTALL_DIR/forgia"
-chmod +x "$REPO_DIR/bin/forgia"
-echo "✓ forgia linked: $INSTALL_DIR/forgia → $REPO_DIR/bin/forgia"
+ln -sf "$REPO_DIR/build/forgia" "$INSTALL_DIR/forgia"
+echo "✓ forgia linked: $INSTALL_DIR/forgia → $REPO_DIR/build/forgia"
 
-# --- 2. Add to PATH automatically ---
+# --- 3. Add to PATH automatically ---
 
 # Detect the right shell RC file
 detect_shell_rc() {
-  # Check $SHELL first (most reliable)
   case "${SHELL:-}" in
     */zsh)
       [[ -f "$HOME/.zshrc" ]] && echo "$HOME/.zshrc" && return
-      echo "$HOME/.zshrc" && return  # create it
+      echo "$HOME/.zshrc" && return
       ;;
     */bash)
       [[ -f "$HOME/.bashrc" ]] && echo "$HOME/.bashrc" && return
@@ -59,7 +63,6 @@ detect_shell_rc() {
       ;;
   esac
 
-  # Fallback: check which files exist
   [[ -f "$HOME/.zshrc" ]] && echo "$HOME/.zshrc" && return
   [[ -f "$HOME/.bashrc" ]] && echo "$HOME/.bashrc" && return
   [[ -f "$HOME/.profile" ]] && echo "$HOME/.profile" && return
@@ -73,7 +76,6 @@ shell_rc=$(detect_shell_rc)
 if echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
   echo "✓ $INSTALL_DIR already in PATH"
 elif [[ -n "$shell_rc" ]]; then
-  # Check if already in RC file (don't duplicate)
   if grep -qF '.local/bin' "$shell_rc" 2>/dev/null; then
     echo "✓ PATH entry already in $shell_rc (restart shell to activate)"
   else
@@ -86,14 +88,12 @@ elif [[ -n "$shell_rc" ]]; then
         echo "# Forgia CLI" >> "$shell_rc"
         echo "$PATH_LINE" >> "$shell_rc"
         echo "✓ PATH added to $shell_rc"
-        # Source it for the current verification step
         export PATH="$INSTALL_DIR:$PATH"
       else
         echo "  Skipped. Add manually:"
         echo "    echo '$PATH_LINE' >> $shell_rc"
       fi
     else
-      # Non-interactive: just add it
       echo "" >> "$shell_rc"
       echo "# Forgia CLI" >> "$shell_rc"
       echo "$PATH_LINE" >> "$shell_rc"
@@ -106,7 +106,7 @@ else
   echo "    $PATH_LINE"
 fi
 
-# --- 3. Install Claude Code commands ---
+# --- 4. Install Claude Code commands ---
 
 if command -v mise >/dev/null 2>&1; then
   echo ""
@@ -124,7 +124,7 @@ else
   echo "  Then run: cd $REPO_DIR && mise run claude:install"
 fi
 
-# --- 4. Verify ---
+# --- 5. Verify ---
 
 echo ""
 echo "=== Verifying ==="
@@ -136,7 +136,7 @@ else
   echo "  Restart your terminal, then try: forgia doctor"
 fi
 
-# --- 5. Summary ---
+# --- 6. Summary ---
 
 echo ""
 echo "=== Installation Complete ==="

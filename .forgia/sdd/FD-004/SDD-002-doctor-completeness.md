@@ -2,7 +2,7 @@
 id: "SDD-002"
 fd: "FD-004"
 title: "doctor completeness — OpenHands, API keys, Beads, knowledge"
-status: in-progress
+status: done
 agent: ""
 assigned_to: ""
 created: "2026-03-28"

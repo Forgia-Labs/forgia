@@ -31,12 +31,16 @@ You ──→ FD (what & why) ──→ SDD (how, for agents) ──→ Agent �
 ## Quick Start
 
 ```bash
-# Prerequisites: mise, docker (optional for OpenHands)
+# Prerequisites: Go 1.25+, mise, docker (optional for OpenHands)
 git clone git@github.com:Deepzima/forgia.git
 cd forgia
 
+# Build the Go binary
+mise run go:build
+# Or: go install github.com/Deepzima/forgia/cmd/forgia@latest
+
 # Trust the mise config to allow running tasks
-mise trust 
+mise trust
 
 # Install Claude Code slash commands
 mise run claude:install
@@ -171,6 +175,7 @@ work_log:
 
 | Tool | Required | Purpose | Install |
 |------|----------|---------|---------|
+| `go` | Yes | Build the CLI | [go.dev](https://go.dev/dl/) (1.25+) |
 | `mise` | Yes | Task runner | [mise.jdx.dev](https://mise.jdx.dev) |
 | `claude` | Yes | Claude Code CLI | [claude.ai/claude-code](https://claude.ai/claude-code) |
 | `docker` | Optional | OpenHands runner | [docker.com](https://docker.com) |
