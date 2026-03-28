@@ -2,9 +2,13 @@ package boardsync
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Deepzima/forgia/internal/vault"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestAllItems(t *testing.T) {
@@ -116,6 +120,118 @@ func TestUpdateStatus_SDD(t *testing.T) {
 	}
 	if got.Status != vault.SDDInProgress {
 		t.Errorf("SDD status = %q, want 'in-progress'", got.Status)
+	}
+}
+
+func TestAllItems_CompetitiveFDs(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	v, err := vault.InitVault(ctx, dir, vault.InitOptions{ProjectName: "test", Author: "tester"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create two competing FDs.
+	fdA := &vault.FD{ID: "FD-comp1", Title: "Option A", Status: vault.FDPlanned, Author: "eng1", CompetesWith: []string{"FD-comp2"}}
+	fdB := &vault.FD{ID: "FD-comp2", Title: "Option B", Status: vault.FDPlanned, Author: "eng2", CompetesWith: []string{"FD-comp1"}, UpstreamIssue: "#99"}
+	if err := v.CreateFD(ctx, fdA); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.CreateFD(ctx, fdB); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := NewVaultAdapter(v)
+	items, err := adapter.AllItems(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+
+	// Find FD-comp1.
+	var comp1, comp2 *struct{ Fields map[string]string }
+	for i := range items {
+		if items[i].ID == "FD-comp1" {
+			comp1 = &struct{ Fields map[string]string }{items[i].Fields}
+		}
+		if items[i].ID == "FD-comp2" {
+			comp2 = &struct{ Fields map[string]string }{items[i].Fields}
+		}
+	}
+	if comp1 == nil || comp2 == nil {
+		t.Fatal("missing competitive FDs in items")
+	}
+	if comp1.Fields["competes_with"] != "FD-comp2" {
+		t.Errorf("FD-comp1 competes_with = %q, want 'FD-comp2'", comp1.Fields["competes_with"])
+	}
+	if comp2.Fields["competes_with"] != "FD-comp1" {
+		t.Errorf("FD-comp2 competes_with = %q, want 'FD-comp1'", comp2.Fields["competes_with"])
+	}
+	if comp2.Fields["upstream_issue"] != "#99" {
+		t.Errorf("FD-comp2 upstream_issue = %q, want '#99'", comp2.Fields["upstream_issue"])
+	}
+}
+
+func TestAllItems_ArchitectureContexts(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	v, err := vault.InitVault(ctx, dir, vault.InitOptions{ProjectName: "test", Author: "tester"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a bounded context YAML file.
+	bc := vault.BoundedContext{
+		Name:        "trading-core",
+		Description: "Core trading engine",
+		Status: vault.ContextStatus{
+			FDCreated:   true,
+			FDCompleted: false,
+		},
+	}
+	ctxDir := filepath.Join(dir, ".forgia", "architecture", "contexts")
+	data, err := yaml.Marshal(&bc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ctxDir, "trading-core.yaml"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := NewVaultAdapter(v)
+	items, err := adapter.AllItems(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have the context as a board item.
+	var found bool
+	for _, item := range items {
+		if item.ID == "CTX-trading-core" {
+			found = true
+			if item.Column != "in-progress" {
+				t.Errorf("context column = %q, want 'in-progress'", item.Column)
+			}
+			if item.Fields["type"] != "bounded-context" {
+				t.Errorf("context type = %q, want 'bounded-context'", item.Fields["type"])
+			}
+			hasArchLabel := false
+			for _, l := range item.Labels {
+				if l == "architecture" {
+					hasArchLabel = true
+				}
+			}
+			if !hasArchLabel {
+				t.Error("context missing 'architecture' label")
+			}
+		}
+	}
+	if !found {
+		t.Error("bounded context not found in AllItems")
 	}
 }
 

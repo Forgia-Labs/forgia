@@ -22,6 +22,9 @@ var idCounter atomic.Uint64
 // VaultReader/VaultWriter is deferred until implementation reveals actual usage
 // patterns — then we refactor based on real data, not speculation.
 type Vault interface {
+	// Dir returns the absolute path to the .forgia/ directory.
+	Dir() string
+
 	// Init scaffolds .forgia/ in the current project.
 	Init(ctx context.Context, opts InitOptions) error
 
