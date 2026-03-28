@@ -1,0 +1,58 @@
+# Forgia Configuration
+# This file controls how SDDs are executed.
+
+[runner]
+# Default runner for SDD execution: "claude" or "openhands"
+default = "claude"
+
+[runner.claude]
+# Claude Code runner — uses your Max subscription (no API key needed)
+# Sub-agents run in isolated git worktrees
+worktree = true
+# Auto-approve tool calls (set to false for interactive mode)
+auto_approve = true
+# Max turns before stopping (0 = unlimited)
+max_turns = 200
+
+[runner.openhands]
+# OpenHands runner — uses API keys, runs in Docker containers
+image = "ghcr.io/all-hands-ai/openhands:latest"
+# LLM model for OpenHands agent
+# Examples:
+#   "anthropic/claude-sonnet-4-20250514"   (Anthropic API)
+#   "openai/gpt-4o"                        (OpenAI API)
+#   "ollama/llama3.1:70b"                  (Local via Ollama/Exo)
+model = "anthropic/claude-sonnet-4-20250514"
+# Workspace mount (where the repo is mounted inside the container)
+workspace_mount = "/opt/workspace"
+# Max iterations before stopping
+max_iterations = 100
+# Port for OpenHands UI (0 = no UI, headless)
+ui_port = 3000
+
+[beads]
+# Beads (bd) task tracker integration
+enabled = true
+# Auto-create bd epic + tasks when SDDs are generated
+auto_create_tasks = true
+# Auto-close bd tasks when SDD execution completes
+auto_close_tasks = true
+# Use bd ready for dependency-aware batch execution
+dependency_aware_batch = true
+
+[knowledge]
+# Knowledge layer — codebase-memory-mcp integration (Tier 3)
+# Provider binary name (must be in PATH)
+provider = "codebase-memory-mcp"
+# Auto-index the codebase during `forgia init`
+auto_index = true
+# Reserved for future use — enable file watching for live re-indexing
+auto_sync = true
+
+[watcher]
+# Auto-execute SDDs when they appear in the vault
+enabled = false
+# Path to watch (relative to project root)
+path = ".forgia/sdd"
+# Debounce delay in seconds (wait before launching after file change)
+debounce = 5

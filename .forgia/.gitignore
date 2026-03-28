@@ -1,0 +1,7 @@
+# Local execution artifacts (not shared)
+logs/
+run/
+*.pid
+
+# Beads database (local, not portable)
+.beads/
