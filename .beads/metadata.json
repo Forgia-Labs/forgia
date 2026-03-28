@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "forgia",
+  "project_id": "a1deb847-986e-44ae-a77d-84a39b1da44f"
+}
