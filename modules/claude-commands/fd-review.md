@@ -30,6 +30,7 @@ Given FD identifier: $ARGUMENTS
 - [ ] SDD breakdown is listed (which components become separate SDDs)
 - [ ] Each SDD has a clear, isolated scope
 - [ ] Interfaces between SDDs are defined (contracts)
+- [ ] **Integration Wiring SDD is present or acknowledged** — the last planned SDD must cover: wiring (mod/use/registration), startup path, E2E test from public entry point to inner component. If missing, the FD FAILS this check. If the FD has only 1 SDD (single component), integration wiring can be part of that SDD's scope — but it must be explicitly mentioned.
 
 ### Constitution & Security Compliance
 - [ ] Respects all principles in constitution.md

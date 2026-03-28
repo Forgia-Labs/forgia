@@ -25,6 +25,19 @@ Given FD identifier: $ARGUMENTS
      - **Context**: files to read, existing code to understand
      - **Constitution Check**: pre-filled from constitution.md
      - **Work Log**: empty, ready to be filled by the agent
+
+   **MANDATORY: The last SDD must always be an Integration Wiring SDD.**
+   This SDD is automatically added even if the FD does not list it. Its scope:
+   - **Wiring**: `pub mod`, `use`, component registration, dependency injection setup
+   - **Startup path**: who calls what, in what order — trace from entry point to leaf
+   - **E2E test**: the complete flow from the public entry point (IPC, API, CLI) to the innermost component
+   - **Acceptance criteria**: NOT "component X works" but "the user calls Y and Z happens"
+
+   Why: without this SDD, each component is tested in isolation but never verified together.
+   Pattern observed: code compiles, unit tests pass, but nothing works end-to-end because
+   modules are never wired, functions are never called from the startup path, and integration
+   is left as an implicit assumption that nobody verifies.
+
 8. Update the FD status to "in-progress"
 9. **Beads integration** (if `bd` is available and `.beads/` exists):
    - Create a bd epic for the FD: `bd create "FD-NNN: <title>" --type=epic`
