@@ -1,7 +1,7 @@
 ---
 id: "FD-002"
 title: "Competitive FD workflow"
-status: in-progress
+status: closed
 priority: high
 effort: medium
 impact: high
