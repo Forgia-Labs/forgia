@@ -10,7 +10,16 @@ This is a READ-ONLY operation. Never modify any vault file.
       "Architettura non trovata. Esegui `/arch-init` per creare l'architettura di progetto."
       — then stop. Do NOT continue.
 
-2. **Read vault files** — load all of these that exist:
+2. **Check MCP Availability** (Step 0.5):
+
+   a. Attempt to call `forgia_arch_coherence` (or `tools/list`) with a 3-second timeout.
+   b. If successful: note "Knowledge graph available — using MCP composite skills for enhanced coherence analysis" and set `MCP_AVAILABLE=true`.
+   c. If failed/timeout: note "Knowledge graph not available — using direct vault coherence check" and set `MCP_AVAILABLE=false`.
+   d. Cache this result — do not re-check MCP on subsequent steps.
+
+   > MCP communication is local-only (stdio, same user) — no network exposure.
+
+3. **Read vault files** — load all of these that exist:
 
    - All `.forgia/architecture/*.yaml` files (system-context, containers, technology-decisions, quality-attributes, constraints, glossary)
    - All `.forgia/contexts/*.yaml` files (bounded contexts)
@@ -19,7 +28,11 @@ This is a READ-ONLY operation. Never modify any vault file.
    - Do NOT read files matching guardrail deny patterns: `**/.env`, `**/*.pem`, `**/*.key`, `**/.ssh/id_*`, `**/.aws/credentials`
    - Actually **read the content** of every discovered file — do not just list them.
 
-3. **Perform coherence checks** — evaluate ALL 8 checks from the table below. For each check, determine if it passes, fails as error, or fails as warning. Record the exact file and field that caused any issue.
+4. **Perform coherence checks** — evaluate ALL 8 checks from the table below. For each check, determine if it passes, fails as error, or fails as warning. Record the exact file and field that caused any issue.
+
+   **If MCP_AVAILABLE**: use `forgia_arch_coherence` to detect call-path drift — components that call each other in code but aren't documented as connected in architecture files. Integrate MCP drift findings into checks #1, #2, and #3 below. Use vault file reads for checks #4-#8.
+
+   **If MCP_AVAILABLE=false** (or fallback): perform all 8 checks using vault file reads only (current behavior).
 
 ### Coherence Checks
 
@@ -34,13 +47,13 @@ This is a READ-ONLY operation. Never modify any vault file.
 | 7 | No FD contradicts decisions in closed FDs' Work Logs | `fd/` retrospectives | **Error** | For each in-progress or approved FD, check if it proposes something that was explicitly rejected or marked as a failure in a closed FD's Work Log retrospective. If a contradiction is found, report an error specifying both the current FD and the closed FD whose retrospective it contradicts. If no closed FDs exist, this check passes. |
 | 8 | Glossary terms are used consistently across contexts | `architecture/glossary.yaml` vs `contexts/` | **Warning** | For each term in `glossary.yaml`, check if contexts use the same term with a different meaning in their `ubiquitous_language` section. If a context redefines a glossary term with a different meaning, report a warning. If the glossary is empty or contexts have no ubiquitous_language entries, this check passes. |
 
-4. **Calculate coherence score**:
+5. **Calculate coherence score**:
    - Start at 100
    - Subtract 15 for each **error**
    - Subtract 5 for each **warning**
    - Minimum score is 0 (never go negative)
 
-5. **Produce the report** using this exact format:
+6. **Produce the report** using this exact format:
 
 ```
 === Architecture Review ===
@@ -66,7 +79,7 @@ This is a READ-ONLY operation. Never modify any vault file.
    - Each error/warning must specify the exact file path and field that caused the issue
    - Sort errors and warnings by check number
 
-6. **Empty/missing sections handling**:
+7. **Empty/missing sections handling**:
    - If `contexts/` directory is empty or missing: report as a warning ("No bounded contexts defined"), and checks 1-4, 8 that depend on contexts all pass vacuously (no data to contradict)
    - If no FD files exist: checks 4-7 pass vacuously
    - If `learnings/` directory is empty or missing: not an issue, check 7 relies on FD Work Logs not learnings

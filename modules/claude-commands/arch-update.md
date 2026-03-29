@@ -22,7 +22,16 @@ Given FD identifier: $ARGUMENTS
       "FD-NNN non e' chiuso. Esegui `/fd-close FD-NNN` prima."
       — then stop. Do NOT continue.
 
-3. **Read SDD Work Logs**:
+3. **Check MCP Availability** (Step 0.5):
+
+   a. Attempt to call `forgia_arch_coherence` (or `tools/list`) with a 3-second timeout.
+   b. If successful: note "Knowledge graph available — using MCP composite skills for enhanced architecture analysis" and set `MCP_AVAILABLE=true`.
+   c. If failed/timeout: note "Knowledge graph not available — using Work Log reading" and set `MCP_AVAILABLE=false`.
+   d. Cache this result — do not re-check MCP on subsequent steps.
+
+   > MCP communication is local-only (stdio, same user) — no network exposure.
+
+4. **Read SDD Work Logs**:
 
    a. Find all SDD files in `.forgia/sdd/FD-NNN/SDD-*.md`
    b. For each SDD file, read the full content and extract:
@@ -34,7 +43,7 @@ Given FD identifier: $ARGUMENTS
       — then stop. Do NOT continue.
    d. Collect all filled Work Log entries into a structured list for analysis.
 
-4. **Read current architecture and context files**:
+5. **Read current architecture and context files**:
 
    - Read all `.forgia/architecture/*.yaml` files:
      - `system-context.yaml`
@@ -46,7 +55,11 @@ Given FD identifier: $ARGUMENTS
    - Read all `.forgia/contexts/*.yaml` files (excluding `_template.yaml`)
    - Do NOT read files matching guardrail deny patterns: `**/.env`, `**/*.pem`, `**/*.key`, `**/.ssh/id_*`, `**/.aws/credentials`
 
-5. **Analyze Work Logs and compute changes**:
+6. **Analyze Work Logs and compute changes**:
+
+   **If MCP_AVAILABLE**: use `forgia_arch_coherence` to detect drift between actual call paths in code and documented architecture. Use `forgia_context_map` to map code changes (from Work Log output files) to their bounded contexts. Combine MCP findings with Work Log analysis to produce more accurate change sets.
+
+   **If MCP_AVAILABLE=false** (or fallback): analyze Work Logs and compute changes manually from text.
 
    For each filled Work Log entry, determine what architecture updates are needed based on these rules:
 
@@ -67,7 +80,7 @@ Given FD identifier: $ARGUMENTS
    - The **action**: add, update, or remove
    - The **details**: the exact values to write
 
-6. **Safety check — preview significant changes**:
+7. **Safety check — preview significant changes**:
 
    If more than 3 files will be modified, present the planned changes to the user BEFORE applying them:
    ```
@@ -85,7 +98,7 @@ Given FD identifier: $ARGUMENTS
 
    If 3 or fewer files are affected, proceed directly.
 
-7. **Apply updates**:
+8. **Apply updates**:
 
    For each change identified in step 5, modify the target YAML file:
 
@@ -135,7 +148,7 @@ Given FD identifier: $ARGUMENTS
    - **Updating quality attributes** in `quality-attributes.yaml`:
      - If an attribute was measured, update its `target` or add a new field `actual` with the measured value
 
-8. **Report changes**:
+9. **Report changes**:
 
    After all updates are applied, produce a detailed report:
 
@@ -161,7 +174,7 @@ Given FD identifier: $ARGUMENTS
    If no changes were detected after analyzing all Work Logs:
    "Architettura aggiornata — nessuna modifica necessaria dai Work Log di FD-NNN."
 
-9. **Trigger architecture review**:
+10. **Trigger architecture review**:
 
    After all updates are applied and reported, automatically run `/arch-review` to validate the updated architecture:
    "Eseguo `/arch-review` per validare la coerenza dell'architettura aggiornata..."

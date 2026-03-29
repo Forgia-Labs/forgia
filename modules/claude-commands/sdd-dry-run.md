@@ -17,6 +17,15 @@ Given SDD file path or FD identifier: $ARGUMENTS
    - Set mode = `fd-aggregate`
 3. If `$ARGUMENTS` is empty or unrecognizable, refuse with: "Uso: /sdd-dry-run <percorso-SDD> oppure /sdd-dry-run FD-NNN"
 
+### Step 0.5: Check MCP Availability
+
+1. Attempt to call `forgia_blast_radius` (or `tools/list`) with a 3-second timeout
+2. If successful: note "Knowledge graph available — using MCP composite skills for enhanced impact analysis" and set `MCP_AVAILABLE=true`
+3. If failed/timeout: note "Knowledge graph not available — using text analysis of SDD" and set `MCP_AVAILABLE=false`
+4. Cache this result — do not re-check MCP on subsequent steps
+
+> MCP communication is local-only (stdio, same user) — no network exposure.
+
 ### Step 1: Load Context
 
 For each SDD to analyze:
@@ -65,6 +74,10 @@ Output: list of guardrail conflicts with severity and the specific deny pattern 
 
 #### Pass 3: Step Planning
 
+**If MCP_AVAILABLE**: use `forgia_blast_radius` to analyze the impact of files listed in the SDD scope — identify dependents, risk levels (High/Medium/Low), and affected bounded contexts. Use this to enrich the step plan with impact-aware ordering (high-risk files first) and more accurate complexity estimates.
+
+**If MCP_AVAILABLE=false** (or fallback): derive the step plan from text analysis of the SDD only.
+
 Simulate the execution by breaking the SDD into ordered steps the agent would take:
 
 1. Analyze the Scope/Deliverables to identify all files to create, modify, or read
@@ -83,6 +96,10 @@ Output: ordered step list
 ---
 
 #### Pass 4: Scope & Complexity Assessment
+
+**If MCP_AVAILABLE**: use `forgia_blast_radius` results from Pass 3 to refine the complexity assessment — factor in the number of dependents and cross-context impacts when scoring complexity.
+
+**If MCP_AVAILABLE=false** (or fallback): assess complexity from SDD text only.
 
 Evaluate whether the SDD scope is tractable for a single agent session:
 

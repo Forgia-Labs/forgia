@@ -10,7 +10,16 @@ Given FD identifier: $ARGUMENTS
    b. Find the matching FD file in `.forgia/fd/` — look for a file matching `FD-NNN-*.md` (e.g., `.forgia/fd/FD-005-*.md`).
    c. If no matching FD file exists, output: `"FD non trovato: $ARGUMENTS. Verifica l'identificatore."` — then **stop**. Do NOT create any file.
 
-2. **Read vault context** — load all of these:
+2. **Check MCP Availability** (Step 0.5):
+
+   a. Attempt to call `forgia_security_scan` (or `tools/list`) with a 3-second timeout.
+   b. If successful: note "Knowledge graph available — using MCP composite skills for enhanced security analysis" and set `MCP_AVAILABLE=true`.
+   c. If failed/timeout: note "Knowledge graph not available — using direct codebase scanning (Glob/Grep/Read)" and set `MCP_AVAILABLE=false`.
+   d. Cache this result — do not re-check MCP on subsequent steps.
+
+   > MCP communication is local-only (stdio, same user) — no network exposure.
+
+3. **Read vault context** — load all of these:
 
    - The FD file (full content: architecture, interfaces, components, constraints, SDD plan)
    - `.forgia/constitution.md` — especially the Security section
@@ -20,13 +29,17 @@ Given FD identifier: $ARGUMENTS
    - `.forgia/dev-guide/lang/*.md` — all language-specific conventions (security patterns)
    - Actually **read the content** of every file — do not just list them.
 
-3. **Scan codebase for existing security patterns**:
+4. **Scan codebase for existing security patterns**:
 
-   - Search for authentication, authorization, input validation, encryption, and access control patterns in the project source code.
+   **If MCP_AVAILABLE**: use `forgia_security_scan` to detect authentication, authorization, input validation, encryption, and access control patterns. The tool automatically filters results through guardrails deny patterns and reports file paths and pattern names only (never secret values). Supplement with targeted Grep/Read if specific areas need deeper inspection.
+
+   **If MCP_AVAILABLE=false** (or fallback):
+   - Search for authentication, authorization, input validation, encryption, and access control patterns in the project source code using Glob/Grep/Read.
    - **CRITICAL**: Before reading any file, check its path against the `[read]` deny patterns in `.forgia/guardrails/deny.toml`. If a file matches a deny pattern, **skip it** and do not include it in context. Specifically, never read: `.env`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `.aws/credentials`, `.ssh/id_*`, `.gnupg/**`, `credentials.json`, `*.tfstate`, or any other pattern listed in the `[read]` section.
-   - Note any existing security mechanisms that are already in place (middleware, validators, sanitizers, encryption helpers).
 
-4. **Identify Assets**:
+   In both cases, note any existing security mechanisms that are already in place (middleware, validators, sanitizers, encryption helpers).
+
+5. **Identify Assets**:
 
    Based on the FD's architecture, interfaces, and data flow, identify:
    - Data assets (user data, configuration, tokens, API keys, session data)
@@ -34,7 +47,7 @@ Given FD identifier: $ARGUMENTS
    - Infrastructure components (databases, message queues, file storage, APIs)
    - Trust boundaries (where data crosses from trusted to untrusted zones)
 
-5. **Enumerate Threat Actors**:
+6. **Enumerate Threat Actors**:
 
    Based on the feature's attack surface, enumerate relevant threat actors:
    - Unauthenticated external users
@@ -45,7 +58,7 @@ Given FD identifier: $ARGUMENTS
    - Supply chain threats (compromised dependencies)
    - Only include actors relevant to the specific feature — do not list generic actors that have no bearing on this FD.
 
-6. **Perform STRIDE Analysis**:
+7. **Perform STRIDE Analysis**:
 
    For each relevant component identified in the FD's architecture, analyze all 6 STRIDE categories:
 
@@ -60,7 +73,7 @@ Given FD identifier: $ARGUMENTS
 
    Each threat row must include: Threat description, STRIDE Category (S/T/R/I/D/E), Component, Risk level (High/Medium/Low), and Mitigation.
 
-7. **Generate SDD Recommendations**:
+8. **Generate SDD Recommendations**:
 
    Map identified mitigations to specific SDDs listed in the FD's "Planned SDDs / SDD Previsti" section. Each recommendation must:
    - Reference a specific SDD by number (e.g., "SDD-002")
@@ -68,7 +81,7 @@ Given FD identifier: $ARGUMENTS
    - Be actionable — an agent reading the SDD should know exactly what security control to implement.
    - If a mitigation applies to a component not covered by any planned SDD, note it as a gap.
 
-8. **Suggest Guardrails Additions**:
+9. **Suggest Guardrails Additions**:
 
    Based on identified threats, propose concrete additions to `.forgia/guardrails/deny.toml`. Each suggestion must:
    - Specify the section (`[read]`, `[execute]`, or `[write]`)
@@ -77,7 +90,7 @@ Given FD identifier: $ARGUMENTS
    - Not duplicate patterns already in the current `deny.toml`
    - Example: `[execute] "kubectl exec*"  # Prevent direct container shell access`
 
-9. **Write the threat model file** at `.forgia/fd/FD-NNN-threat-model.md` using this exact format:
+10. **Write the threat model file** at `.forgia/fd/FD-NNN-threat-model.md` using this exact format:
 
 ```markdown
 ---
@@ -132,7 +145,7 @@ Proposed additions to `.forgia/guardrails/deny.toml`:
 If no additions are needed, state: "No additional guardrails patterns identified — existing deny.toml coverage is sufficient."
 ```
 
-10. **Report to the user**:
+11. **Report to the user**:
 
     - Confirm the file was created: `"Threat model creato: .forgia/fd/FD-NNN-threat-model.md"`
     - Summarize: number of assets, threat actors, STRIDE threats found, SDD recommendations, and guardrails suggestions
