@@ -135,7 +135,7 @@ Implement 4 primitive composite skills that each wrap a single `codebase-memory-
 
 ### Output
 
-- **Commit(s)**: <!-- hash — will be filled after commit -->
+- **Commit(s)**: c9dd96b
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `internal/skill/composite.go` — replaced 4 stub primitives with full implementations including PostProcess closures + helper functions
