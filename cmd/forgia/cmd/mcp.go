@@ -10,6 +10,7 @@ import (
 
 	forgia "github.com/Deepzima/forgia"
 	"github.com/Deepzima/forgia/internal/config"
+	"github.com/Deepzima/forgia/internal/guardrails"
 	"github.com/Deepzima/forgia/internal/mcp"
 	"github.com/Deepzima/forgia/internal/skill"
 	"github.com/Deepzima/forgia/internal/vault"
@@ -75,16 +76,25 @@ func runMCPServe(cmd *cobra.Command, args []string) error {
 	}
 	logger.InfoContext(ctx, "composite skills registered")
 
-	// 6. Create MCP server.
+	// 6. Register vault provider (FD/SDD CRUD tools).
+	var g *guardrails.Guardrails
+	if gData, err := v.GuardrailsRaw(ctx); err == nil {
+		g, _ = guardrails.Parse(gData)
+	}
+	vaultProvider := mcp.NewVaultProvider(v, g, providers)
+	providers.Register(vaultProvider)
+	logger.InfoContext(ctx, "vault provider registered")
+
+	// 7. Create MCP server.
 	transport := mcp.NewStdioTransport(os.Stdin, os.Stdout)
 	server := mcp.NewMCPServer(transport, providers, skills)
 
-	// 7. Serve — blocks until signal or stdin EOF.
+	// 8. Serve — blocks until signal or stdin EOF.
 	logger.InfoContext(ctx, "starting MCP server on stdio")
 
 	if err := server.Serve(ctx); err != nil {
 		if ctx.Err() != nil {
-			// 8. Graceful shutdown via signal — providers stopped by defer.
+			// 9. Graceful shutdown via signal — providers stopped by defer.
 			logger.InfoContext(ctx, "MCP server stopped (signal)")
 			return nil
 		}

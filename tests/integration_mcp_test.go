@@ -153,9 +153,29 @@ func TestIntegration_ServerE2E_ToolsList(t *testing.T) {
 		t.Fatal("missing tools array in result")
 	}
 
-	// Minimal vault → no external providers, but 7 composite skills are registered.
-	if len(tools) != 7 {
-		t.Errorf("expected 7 tools (composite skills, no external providers), got %d", len(tools))
+	// Minimal vault → no external providers, but 7 composite skills + 11 vault tools = 18.
+	if len(tools) != 18 {
+		t.Errorf("expected 18 tools (7 composite skills + 11 vault tools), got %d", len(tools))
+	}
+
+	// Verify vault tools are present.
+	toolNames := make(map[string]bool)
+	for _, item := range tools {
+		tool, _ := item.(map[string]any)
+		name, _ := tool["name"].(string)
+		toolNames[name] = true
+	}
+	for _, expected := range []string{
+		"forgia_vault_fd_get", "forgia_vault_fd_list",
+		"forgia_vault_fd_create", "forgia_vault_fd_update",
+		"forgia_vault_sdd_get", "forgia_vault_sdd_list",
+		"forgia_vault_sdd_create", "forgia_vault_sdd_update",
+		"forgia_vault_status", "forgia_vault_validate",
+		"forgia_vault_threat_model_get",
+	} {
+		if !toolNames[expected] {
+			t.Errorf("missing vault tool in tools/list: %s", expected)
+		}
 	}
 }
 
