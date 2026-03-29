@@ -133,7 +133,7 @@ The user calls `forgia mcp serve` → agent calls `tools/list` → sees all tool
 
 ### Output
 
-- **Commit(s)**: <!-- hash filled after commit -->
+- **Commit(s)**: e448fbe
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `cmd/forgia/cmd/mcp.go` — full startup path: vault → config → WireProviders → LoadEmbedded → RegisterCompositeSkills → Serve; graceful shutdown via defer StopAll()
