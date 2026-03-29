@@ -182,6 +182,21 @@ func (r *Registry) MCPTools() []Skill {
 	return result
 }
 
+// GetAndExecute looks up a skill by name and executes it.
+// Returns (result, true, nil) if found, (nil, false, nil) if not found.
+// Satisfies mcp.SkillDispatcher interface.
+func (r *Registry) GetAndExecute(ctx context.Context, name string, params map[string]any) (any, bool, error) {
+	s, ok := r.skills[name]
+	if !ok {
+		return nil, false, nil
+	}
+	result, err := s.Execute(ctx, params)
+	if err != nil {
+		return nil, true, err
+	}
+	return result, true, nil
+}
+
 // MCPToolDefs returns MCP tool definitions for all MCP-capable skills.
 // Used by the MCP server to advertise available tools.
 func (r *Registry) MCPToolDefs() []mcp.ToolDefinition {

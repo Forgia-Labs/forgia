@@ -30,16 +30,15 @@ type MCPSubprocessProvider struct {
 	exposeTools     map[string]bool
 	namespace       string
 
-	mu       sync.RWMutex
-	cmd      *exec.Cmd
-	stdin    io.WriteCloser
-	enc      *json.Encoder
-	tools    []ToolDefinition
-	healthy  bool
-	started  bool
-	stopping bool
+	mu        sync.RWMutex
+	cmd       *exec.Cmd
+	stdin     io.WriteCloser
+	transport *StdioTransport
+	tools     []ToolDefinition
+	healthy   bool
+	started   bool
+	stopping  bool
 
-	writeMu sync.Mutex
 	startMu sync.Mutex
 	nextID  atomic.Int64
 	pending sync.Map // int → chan jsonrpcResponse
@@ -243,12 +242,11 @@ func (p *MCPSubprocessProvider) spawn() error {
 	p.mu.Lock()
 	p.cmd = cmd
 	p.stdin = stdin
-	p.enc = json.NewEncoder(stdin)
+	p.transport = NewStdioTransport(stdout, stdin)
 	p.done = done
 	p.mu.Unlock()
 
-	dec := json.NewDecoder(stdout)
-	go p.readLoop(dec)
+	go p.readLoop()
 
 	go func() {
 		cmd.Wait()
@@ -330,11 +328,8 @@ func (p *MCPSubprocessProvider) sendRequest(ctx context.Context, method string, 
 	p.pending.Store(id, ch)
 	defer p.pending.Delete(id)
 
-	p.writeMu.Lock()
-	encErr := p.enc.Encode(req)
-	p.writeMu.Unlock()
-	if encErr != nil {
-		return nil, fmt.Errorf("mcp provider %s: send %s: %w", p.name, method, encErr)
+	if err := p.transport.WriteRequest(req); err != nil {
+		return nil, fmt.Errorf("mcp provider %s: send %s: %w", p.name, method, err)
 	}
 
 	p.mu.RLock()
@@ -361,23 +356,21 @@ func (p *MCPSubprocessProvider) sendNotification(method string, params any) erro
 		Method:  method,
 		Params:  params,
 	}
-	p.writeMu.Lock()
-	defer p.writeMu.Unlock()
-	return p.enc.Encode(notif)
+	return p.transport.WriteNotification(notif)
 }
 
 // readLoop reads JSON-RPC responses from stdout and dispatches to pending callers.
-func (p *MCPSubprocessProvider) readLoop(dec *json.Decoder) {
+func (p *MCPSubprocessProvider) readLoop() {
 	for {
-		var resp jsonrpcResponse
-		if err := dec.Decode(&resp); err != nil {
+		resp, err := p.transport.ReadResponse()
+		if err != nil {
 			return // EOF or read error — subprocess exited
 		}
 		if resp.ID == nil {
 			continue // server notification, skip
 		}
 		if ch, ok := p.pending.LoadAndDelete(*resp.ID); ok {
-			ch.(chan jsonrpcResponse) <- resp
+			ch.(chan jsonrpcResponse) <- *resp
 		}
 	}
 }
@@ -452,12 +445,12 @@ func (p *MCPSubprocessProvider) killProcess() error {
 	p.logger.Info("killing subprocess", "pid", cmd.Process.Pid)
 
 	// Close stdin
-	p.writeMu.Lock()
+	p.mu.Lock()
 	if p.stdin != nil {
 		p.stdin.Close()
 		p.stdin = nil
 	}
-	p.writeMu.Unlock()
+	p.mu.Unlock()
 
 	// Send SIGTERM
 	_ = cmd.Process.Signal(syscall.SIGTERM)
