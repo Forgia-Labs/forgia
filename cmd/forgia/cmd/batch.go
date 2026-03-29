@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Deepzima/forgia/internal/beads"
+	"github.com/Deepzima/forgia/internal/config"
 	"github.com/Deepzima/forgia/internal/runner"
 	"github.com/Deepzima/forgia/internal/vault"
 	"github.com/spf13/cobra"
@@ -26,12 +27,12 @@ var batchCmd = &cobra.Command{
 		sddDir := filepath.Join(".forgia", "sdd", fdID)
 
 		if _, err := os.Stat(sddDir); os.IsNotExist(err) {
-			return fmt.Errorf("nessun SDD trovato per %s in %s", fdID, sddDir)
+			return fmt.Errorf("no SDDs found for %s in %s", fdID, sddDir)
 		}
 
 		entries, err := os.ReadDir(sddDir)
 		if err != nil {
-			return fmt.Errorf("lettura directory %s: %w", sddDir, err)
+			return fmt.Errorf("read directory %s: %w", sddDir, err)
 		}
 
 		var pendingSDDs []string
@@ -52,13 +53,13 @@ var batchCmd = &cobra.Command{
 		}
 
 		if len(pendingSDDs) == 0 {
-			fmt.Fprintln(cmd.OutOrStdout(), "Nessun SDD pendente per", fdID)
+			fmt.Fprintln(cmd.OutOrStdout(), "No pending SDDs for", fdID)
 			return nil
 		}
 
 		if batchDryRun {
 			if batchRunner != "" {
-				fmt.Fprintln(cmd.OutOrStdout(), "Nota: --runner ignorato durante dry-run (la simulazione usa Claude)")
+				fmt.Fprintln(cmd.OutOrStdout(), "Note: --runner ignored during dry-run (simulation uses Claude)")
 			}
 			return runBatchDryRun(cmd, fdID, pendingSDDs)
 		}
@@ -79,39 +80,95 @@ var batchCmd = &cobra.Command{
 		logsDir := filepath.Join(".forgia", "logs")
 		bc := beads.NewClient()
 
+		// Build exec options matching exec.go — load config for max_turns.
+		v, _ := vault.Open(".")
+		var systemCtx string
+		maxTurns := 200
+		if v != nil {
+			systemCtx, _ = runner.BuildSystemContext(ctx, v)
+			cfg, cfgErr := config.LoadConfig(ctx, v.Dir())
+			if cfgErr == nil && cfg.Runner.Claude.MaxTurns > 0 {
+				maxTurns = cfg.Runner.Claude.MaxTurns
+			}
+		}
+		opts := runner.ExecOptions{
+			PermissionMode: "auto",
+			MaxTurns:       maxTurns,
+			SystemContext:   systemCtx,
+		}
+
+		total := len(pendingSDDs)
 		var completed, failed int
-		for _, sddFile := range pendingSDDs {
+
+		for i, sddFile := range pendingSDDs {
 			data, _ := os.ReadFile(sddFile)
 			content := string(data)
 			sddID := strings.Trim(extractFrontmatterValue(content, "id:"), "\"' ")
 			sddFD := strings.Trim(extractFrontmatterValue(content, "fd:"), "\"' ")
 
+			fmt.Fprintf(cmd.OutOrStdout(), "\n=== [%d/%d] Executing %s ===\n", i+1, total, sddID)
+			fmt.Fprintf(cmd.OutOrStdout(), "  File: %s\n", sddFile)
+			fmt.Fprintf(cmd.OutOrStdout(), "  Runner: %s\n\n", r.Name())
+
 			sdd := &vault.SDD{ID: sddID, FD: sddFD, FilePath: sddFile}
-			result, execErr := r.Execute(ctx, sdd, runner.ExecOptions{})
+			result, execErr := r.Execute(ctx, sdd, opts)
 
 			// Write JSON report for every execution.
+			var reportPath string
 			if result != nil {
 				if result.File == "" {
 					result.File = sddFile
 				}
-				if _, reportErr := writeExecReport(result, logsDir); reportErr != nil {
+				rp, reportErr := writeExecReport(result, logsDir)
+				if reportErr != nil {
 					logger.WarnContext(ctx, "failed to write exec report", "sdd", sddID, "error", reportErr)
+				} else {
+					reportPath = rp
+				}
+			}
+
+			// Log result summary.
+			if result != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "  Status:   %s\n", result.Status)
+				fmt.Fprintf(cmd.OutOrStdout(), "  Exit:     %d\n", result.ExitCode)
+				fmt.Fprintf(cmd.OutOrStdout(), "  Duration: %ds\n", result.DurationSecs)
+				if reportPath != "" {
+					fmt.Fprintf(cmd.OutOrStdout(), "  Report:   %s\n", reportPath)
+				}
+				if len(result.FilesCreated) > 0 {
+					fmt.Fprintf(cmd.OutOrStdout(), "  Created:  %s\n", strings.Join(result.FilesCreated, ", "))
+				}
+				if len(result.FilesModified) > 0 {
+					fmt.Fprintf(cmd.OutOrStdout(), "  Modified: %s\n", strings.Join(result.FilesModified, ", "))
 				}
 			}
 
 			if execErr != nil || (result != nil && result.ExitCode != 0) {
 				failed++
-				fmt.Fprintf(cmd.ErrOrStderr(), "Avviso: %s fallito\n", sddFile)
-			} else {
-				completed++
-				closeBeadsTask(ctx, bc, sddID)
+				reason := "non-zero exit code"
+				if execErr != nil {
+					reason = execErr.Error()
+				}
+				fmt.Fprintf(cmd.ErrOrStderr(), "\n  ✗ %s FAILED: %s\n", sddID, reason)
+
+				// Check log file for permission issues or other blocking errors.
+				if reportPath != "" {
+					fmt.Fprintf(cmd.ErrOrStderr(), "  Check log: %s\n", reportPath)
+				}
+
+				// Stop batch on failure — don't execute remaining SDDs.
+				fmt.Fprintf(cmd.ErrOrStderr(), "\n  Batch stopped. Fix %s before continuing.\n", sddID)
+				fmt.Fprintf(cmd.ErrOrStderr(), "  Remaining: %d SDDs not executed.\n", total-i-1)
+				fmt.Fprintf(cmd.OutOrStdout(), "\nCompleted: %d, Failed: %d, Remaining: %d\n", completed, failed, total-i-1)
+				return fmt.Errorf("%s failed: %s", sddID, reason)
 			}
+
+			completed++
+			closeBeadsTask(ctx, bc, sddID)
+			fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s completed\n", sddID)
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Completati: %d, Falliti: %d\n", completed, failed)
-		if failed > 0 {
-			return fmt.Errorf("%d SDD falliti", failed)
-		}
+		fmt.Fprintf(cmd.OutOrStdout(), "\n=== Batch Complete ===\nCompleted: %d, Failed: %d\n", completed, failed)
 		return nil
 	},
 }
@@ -119,7 +176,7 @@ var batchCmd = &cobra.Command{
 func runBatchDryRun(cmd *cobra.Command, fdID string, sddFiles []string) error {
 	slashCmd := filepath.Join("modules", "claude-commands", "sdd-dry-run.md")
 	if _, err := os.Stat(slashCmd); os.IsNotExist(err) {
-		return fmt.Errorf("sdd-dry-run.md non trovato — esegui prima SDD-001 di FD-012")
+		return fmt.Errorf("sdd-dry-run.md not found — run SDD-001 of FD-012 first")
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "=== FD Dry Run: %s (%d SDDs) ===\n\n", fdID, len(sddFiles))
@@ -131,7 +188,7 @@ func runBatchDryRun(cmd *cobra.Command, fdID string, sddFiles []string) error {
 			SlashCommandPath: slashCmd,
 		})
 		if err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "Errore dry-run %s: %v\n", sddFile, err)
+			fmt.Fprintf(cmd.ErrOrStderr(), "Dry-run error %s: %v\n", sddFile, err)
 			nogoCount++
 			continue
 		}
@@ -146,13 +203,13 @@ func runBatchDryRun(cmd *cobra.Command, fdID string, sddFiles []string) error {
 	}
 
 	if nogoCount > 0 {
-		return fmt.Errorf("dry-run: %d SDD con NO-GO", nogoCount)
+		return fmt.Errorf("dry-run: %d SDDs with NO-GO", nogoCount)
 	}
 	return nil
 }
 
 func init() {
-	batchCmd.Flags().BoolVar(&batchDryRun, "dry-run", false, "Simula esecuzione senza modificare file")
+	batchCmd.Flags().BoolVar(&batchDryRun, "dry-run", false, "Simulate execution without modifying files")
 	batchCmd.Flags().StringVar(&batchRunner, "runner", "", "Runner da usare (claude|openhands)")
 	rootCmd.AddCommand(batchCmd)
 }

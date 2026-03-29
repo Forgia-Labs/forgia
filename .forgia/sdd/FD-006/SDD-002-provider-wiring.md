@@ -134,7 +134,7 @@ Add `[mcp.providers.*]` section with commented examples to `modules/vault-templa
 
 ### Output
 
-- **Commit(s)**: (pending)
+- **Commit(s)**: 4615166
 - **PR**: —
 - **Files created/modified**:
   - `internal/mcp/wiring.go` (new — `WireProviders`, `ValidateCommand`)
