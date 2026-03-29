@@ -89,6 +89,7 @@ your-project/
 | `/fd-explore` | **Study the piece** — load FD context |
 | `/fd-verify` | **Quality check** — verify implementation vs spec |
 | `/fd-close` | **Seal the work** — archive completed FD + retrospective |
+| `/fd-compare` | **Weigh the options** — compare competing FDs side-by-side |
 | `/fd-status` | **Forge status** — FD + SDD dashboard |
 
 ## CLI Tools

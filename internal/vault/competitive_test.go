@@ -2,12 +2,11 @@ package vault
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
 func TestRejectCompetitors(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	ctx := context.Background()
 
@@ -57,6 +56,7 @@ func TestRejectCompetitors(t *testing.T) {
 }
 
 func TestRejectCompetitors_Idempotent(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	ctx := context.Background()
 
@@ -80,6 +80,7 @@ func TestRejectCompetitors_Idempotent(t *testing.T) {
 }
 
 func TestRejectCompetitors_NoCompetitors(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	ctx := context.Background()
 
@@ -99,6 +100,7 @@ func TestRejectCompetitors_NoCompetitors(t *testing.T) {
 }
 
 func TestFindCompetitors(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	ctx := context.Background()
 
@@ -128,6 +130,5 @@ func TestFindCompetitors(t *testing.T) {
 		t.Fatalf("expected 2 competitors, got %d: %v", len(competitors), names)
 	}
 
-	// Ensure we don't have cleanup issues with test temp dirs.
-	_ = os.RemoveAll(filepath.Join(dir, ".forgia"))
+	// t.TempDir() handles cleanup automatically.
 }

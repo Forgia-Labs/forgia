@@ -56,32 +56,42 @@ func (v *FileVault) FindCompetitors(ctx context.Context, fdID string) ([]*FD, er
 		return nil, fmt.Errorf("list FDs: %w", err)
 	}
 
+	seen := make(map[string]bool)
 	var competitors []*FD
-	for _, fd := range allFDs {
-		if fd.ID == fdID {
-			continue
-		}
 
-		// Check competes_with.
-		for _, cw := range fd.CompetesWith {
-			if cw == fdID {
-				competitors = append(competitors, fd)
+	addIfNew := func(fd *FD) {
+		if fd.ID == fdID || seen[fd.ID] {
+			return
+		}
+		seen[fd.ID] = true
+		competitors = append(competitors, fd)
+	}
+
+	// Direction 1: target's own competes_with list.
+	for _, id := range target.CompetesWith {
+		for _, fd := range allFDs {
+			if fd.ID == id {
+				addIfNew(fd)
 				break
 			}
 		}
+	}
 
-		// Check shared upstream_issue.
-		if target.UpstreamIssue != "" && fd.UpstreamIssue == target.UpstreamIssue {
-			// Avoid duplicates.
-			found := false
-			for _, c := range competitors {
-				if c.ID == fd.ID {
-					found = true
-					break
-				}
+	// Direction 2: other FDs that list target in their competes_with.
+	for _, fd := range allFDs {
+		for _, cw := range fd.CompetesWith {
+			if cw == fdID {
+				addIfNew(fd)
+				break
 			}
-			if !found {
-				competitors = append(competitors, fd)
+		}
+	}
+
+	// Direction 3: shared upstream_issue.
+	if target.UpstreamIssue != "" {
+		for _, fd := range allFDs {
+			if fd.UpstreamIssue == target.UpstreamIssue {
+				addIfNew(fd)
 			}
 		}
 	}

@@ -55,16 +55,21 @@ func printDashboard(ctx context.Context, v vault.Vault) error {
 	fmt.Fprintf(w, "──\t─────\t──────\t────────\t──────\n")
 
 	// Group competing FDs together.
-	// Key: upstream_issue if set, otherwise first competes_with ID as group key.
+	// Uses upstream_issue when available, otherwise builds a stable key
+	// from the sorted set of competing FD IDs.
 	groups := make(map[string][]*vault.FD)
-	grouped := make(map[string]bool) // FD IDs already in a group
+	grouped := make(map[string]bool)
 	var ungrouped []*vault.FD
 
 	for _, fd := range fds {
-		if len(fd.CompetesWith) > 0 {
+		isCompetitive := len(fd.CompetesWith) > 0 || (fd.UpstreamIssue != "" && countByUpstream(fds, fd.UpstreamIssue) > 1)
+		if isCompetitive {
 			key := fd.UpstreamIssue
 			if key == "" {
-				key = "competing:" + fd.ID // synthetic key for FDs without upstream_issue
+				// Build stable key from sorted competing IDs.
+				ids := append(append([]string{}, fd.CompetesWith...), fd.ID)
+				sort.Strings(ids)
+				key = "competing:" + strings.Join(ids, ",")
 			}
 			groups[key] = append(groups[key], fd)
 			grouped[fd.ID] = true
@@ -109,6 +114,17 @@ func printDashboard(ctx context.Context, v vault.Vault) error {
 
 	w.Flush()
 	return nil
+}
+
+// countByUpstream counts FDs sharing the same upstream_issue.
+func countByUpstream(fds []*vault.FD, issue string) int {
+	n := 0
+	for _, fd := range fds {
+		if fd.UpstreamIssue == issue {
+			n++
+		}
+	}
+	return n
 }
 
 func printFDRow(ctx context.Context, w *tabwriter.Writer, v vault.Vault, fd *vault.FD, prefix string) {
