@@ -1,71 +1,46 @@
 # --- Test ---
 
 [tasks.test]
-description = "Run all E2E tests"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
+description = "Run all tests (Go unit + E2E)"
+run = "go test ./..."
 
-root="{{config_root}}"
-failed=0
-
-for test_file in "$root"/tests/e2e*.sh; do
-  [[ -f "$test_file" ]] || continue
-  echo ""
-  echo "========================================="
-  echo "Running: $(basename "$test_file")"
-  echo "========================================="
-  if ! bash "$test_file"; then
-    failed=$((failed + 1))
-  fi
-done
-
-echo ""
-if (( failed > 0 )); then
-  echo "FAILED: $failed test suite(s) failed"
-  exit 1
-else
-  echo "ALL TEST SUITES PASSED"
-fi
-"""
-
-# --- Core tasks ---
+# --- Core tasks (Go binary) ---
 
 [tasks.init]
 description = "Forgia il vault .forgia/ nel progetto"
-run = "{{config_root}}/bin/forgia init"
+run = "go run ./cmd/forgia init"
 
 [tasks.status]
 description = "Mostra la dashboard FD + SDD"
-run = "{{config_root}}/bin/forgia status"
+run = "go run ./cmd/forgia status"
 
 [tasks.doctor]
 description = "Verifica salute: docker, openhands, vault, mise"
-run = "{{config_root}}/bin/forgia doctor"
+run = "go run ./cmd/forgia doctor"
 
 # --- SDD validation ---
 
 [tasks."sdd:validate"]
 description = "Valida un SDD o tutti gli SDD di un FD"
 usage = "mise run sdd:validate <sdd-file|FD-NNN>"
-run = "{{config_root}}/bin/forgia validate $@"
+run = "go run ./cmd/forgia validate $@"
 
 # --- SDD execution (runner-agnostic) ---
 
 [tasks."sdd:exec"]
 description = "Esegui un SDD (auto-detect runner da config.toml)"
 usage = "mise run sdd:exec <sdd-file> [--runner=claude|openhands]"
-run = "{{config_root}}/bin/forgia exec $@"
+run = "go run ./cmd/forgia exec $@"
 
 [tasks."sdd:batch"]
 description = "Esegui tutti gli SDD di un FD"
 usage = "mise run sdd:batch <FD-NNN> [--runner=claude|openhands]"
-run = "{{config_root}}/bin/forgia batch $@"
+run = "go run ./cmd/forgia batch $@"
 
 [tasks."sdd:watch"]
 description = "Osserva e esegui nuovi SDD automaticamente"
 usage = "mise run sdd:watch <FD-NNN> [--runner=claude|openhands]"
-run = "{{config_root}}/bin/forgia watch $@"
+run = "go run ./cmd/forgia watch $@"
 
 # --- Optional tools ---
 

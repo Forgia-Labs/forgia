@@ -12,6 +12,8 @@ import (
 
 	forgia "github.com/Deepzima/forgia"
 	"github.com/Deepzima/forgia/internal/beads"
+	"github.com/Deepzima/forgia/internal/config"
+	"github.com/Deepzima/forgia/internal/knowledge"
 	"github.com/spf13/cobra"
 )
 
@@ -67,18 +69,33 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Create .gitignore for .forgia/.
 	gitignorePath := filepath.Join(forgiaDir, ".gitignore")
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
-		gitignore := "# Local-only files\nlogs/\nrun/\n"
+		gitignore := "# Local-only files\nlogs/\nrun/\n*.pid\n.beads/\n"
 		if err := os.WriteFile(gitignorePath, []byte(gitignore), 0o644); err != nil {
 			return fmt.Errorf("write .gitignore: %w", err)
 		}
 		logger.InfoContext(ctx, "created .gitignore")
 	}
 
-	// Create .github/CODEOWNERS if not exists.
-	codeownersPath := filepath.Join(dir, ".github", "CODEOWNERS")
-	if _, err := os.Stat(codeownersPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(filepath.Join(dir, ".github"), 0o755); err == nil {
-			codeowners := "# Forgia vault — requires review for changes\n.forgia/ @Deepzima\n"
+	// Create .github/CODEOWNERS only if .github/ already exists.
+	githubDir := filepath.Join(dir, ".github")
+	if info, err := os.Stat(githubDir); err == nil && info.IsDir() {
+		codeownersPath := filepath.Join(githubDir, "CODEOWNERS")
+		if _, err := os.Stat(codeownersPath); os.IsNotExist(err) {
+			owner := gitUserName()
+			if owner == "" {
+				owner = "@owner"
+			}
+			codeowners := fmt.Sprintf(
+				"# Forgia vault — critical files require review\n"+
+					".forgia/constitution.md %s\n"+
+					".forgia/guardrails/ %s\n"+
+					".forgia/architecture/ %s\n"+
+					".forgia/contexts/ %s\n"+
+					".forgia/config.toml %s\n"+
+					"# FDs are open to all contributors\n"+
+					"# .forgia/fd/\n",
+				owner, owner, owner, owner, owner,
+			)
 			os.WriteFile(codeownersPath, []byte(codeowners), 0o644)
 			logger.InfoContext(ctx, "created CODEOWNERS")
 		}
@@ -86,6 +103,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Beads init (optional).
 	initBeads(ctx, dir, logger)
+
+	// Knowledge layer init (optional).
+	initKnowledge(ctx, dir, forgiaDir, logger)
 
 	// Summary.
 	fmt.Println()
@@ -192,7 +212,49 @@ func initBeads(ctx context.Context, dir string, logger *slog.Logger) {
 	}
 }
 
+// initKnowledge auto-indexes the codebase and creates .mcp.json if codebase-memory-mcp is available.
+func initKnowledge(ctx context.Context, dir, forgiaDir string, logger *slog.Logger) {
+	kc := knowledge.NewClient()
+	if !kc.Available() {
+		logger.InfoContext(ctx, "codebase-memory-mcp not available, skipping knowledge layer")
+		return
+	}
+
+	// Load config to check auto_index setting.
+	cfg, err := config.LoadConfig(ctx, forgiaDir)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to load config for knowledge layer", "error", err)
+		return
+	}
+
+	if cfg.Knowledge.AutoIndex {
+		logger.InfoContext(ctx, "indexing codebase with codebase-memory-mcp")
+		symbols, err := kc.Index(ctx)
+		if err != nil {
+			logger.WarnContext(ctx, "codebase indexing failed (optional)", "error", err)
+		} else {
+			fmt.Printf("  Knowledge: indexed %d symbols\n", symbols)
+		}
+	}
+
+	// Create/merge .mcp.json.
+	if err := knowledge.EnsureMCPJSON(ctx, dir); err != nil {
+		logger.WarnContext(ctx, "failed to create/update .mcp.json", "error", err)
+	} else {
+		logger.InfoContext(ctx, "ensured .mcp.json has codebase-memory-mcp config")
+	}
+}
+
 // stackString joins detected languages for display.
+// gitUserName returns the current git user.name, or empty string if unavailable.
+func gitUserName() string {
+	out, err := exec.Command("git", "config", "user.name").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func stackString(langs []string) string {
 	return strings.Join(langs, ", ")
 }

@@ -12,6 +12,10 @@
 git clone git@github.com:Deepzima/forgia.git ~/forgia
 cd ~/forgia
 
+# Build the Go binary
+mise run go:build
+# Or: go install github.com/Deepzima/forgia/cmd/forgia@latest
+
 # Install Claude Code slash commands
 mise run claude:install
 
@@ -25,7 +29,7 @@ mise run openhands:install
 cd /path/to/your/project
 
 # Option 1: via CLI
-~/forgia/bin/forgia init
+forgia init
 
 # Option 2: via Claude Code
 /project-init
@@ -148,7 +152,7 @@ Archives the FD, updates changelog, aggregates retrospectives.
 ## Health Check
 
 ```bash
-~/forgia/bin/forgia doctor
+forgia doctor
 ```
 
 Checks: vault structure, Docker, OpenHands, mise, Claude commands, LLM API key.

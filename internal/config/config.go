@@ -167,6 +167,13 @@ func DefaultConfig() *Config {
 				TeamDefaultModel: "sonnet",
 				TeamMaxTeammates: 5,
 			},
+			OpenHands: OpenHandsConfig{
+				Image:          "ghcr.io/openhands/openhands:latest",
+				Model:          "claude-sonnet-4-20250514",
+				WorkspaceMount: "/workspace",
+				MaxIterations:  100,
+				UIPort:         3000,
+			},
 		},
 		Watcher: WatcherConfig{
 			Path:     ".forgia/sdd",

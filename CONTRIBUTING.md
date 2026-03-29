@@ -54,12 +54,6 @@ mise run go:test
 - **Testing** — table-driven tests, `t.Helper()` in helpers, `t.TempDir()` for temp files
 - **No `init()`** — explicit initialization only
 
-### Shell (Bash CLI)
-
-- `set -euo pipefail` at the top
-- POSIX-compatible where possible
-- `grep -v '^#'` to skip comments when parsing TOML
-
 ### YAML / TOML / JSON
 
 - 2-space indent for all
@@ -80,9 +74,7 @@ internal/
   beads/              # Beads (bd) client
   process/            # Subprocess management
   scm/                # Git/GitHub/GitLab abstraction
-bin/forgia            # Bash CLI (legacy, being replaced by Go)
 modules/
-  runners/            # Bash runner scripts
   claude-commands/    # Claude Code slash commands
   vault-template/     # Template for forgia init
 tests/                # E2E tests (Bash)
@@ -100,11 +92,13 @@ go test -count=1 ./...     # skip cache
 go vet ./...               # static analysis
 ```
 
-### E2E tests (Bash CLI)
+### E2E tests
+
+E2E tests are Go tests in the `tests/` package. They build the forgia binary and run
+the full command suite against a temp directory.
 
 ```bash
-mise run test              # all E2E suites
-bash tests/e2e.sh          # single suite
+go test ./tests/  # E2E suite only
 ```
 
 ### Writing Tests

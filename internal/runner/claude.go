@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Deepzima/forgia/internal/config"
 	"github.com/Deepzima/forgia/internal/vault"
 )
 
@@ -46,6 +46,7 @@ func (r *ClaudeRunner) Execute(ctx context.Context, sdd *vault.SDD, opts ExecOpt
 	result := &ExecResult{
 		SDD:     sdd.ID,
 		FD:      sdd.FD,
+		File:    sdd.FilePath,
 		Runner:  "claude",
 		Started: started,
 	}
@@ -102,11 +103,6 @@ func (r *ClaudeRunner) Execute(ctx context.Context, sdd *vault.SDD, opts ExecOpt
 		result.Status = "success"
 		r.logger.InfoContext(ctx, "execution complete", "sdd", sdd.ID, "duration", result.DurationSecs)
 	}
-
-	// Write JSON report.
-	reportFile := filepath.Join(logDir, fmt.Sprintf("exec-%s-%s.json", sdd.ID, started.Format("2006-01-02T15:04:05")))
-	reportData, _ := json.MarshalIndent(result, "", "  ")
-	os.WriteFile(reportFile, reportData, 0o644)
 
 	return result, execErr
 }
@@ -173,13 +169,20 @@ func buildTaskPrompt(sdd *vault.SDD) string {
 }
 
 // Resolve picks the right runner from a name string.
-func Resolve(runnerName string) (Runner, error) {
+// An optional config.OpenHandsConfig can be passed for the openhands runner.
+func Resolve(runnerName string, ohCfg ...config.OpenHandsConfig) (Runner, error) {
 	switch strings.ToLower(strings.TrimSpace(runnerName)) {
 	case "claude", "claude-code", "":
 		return NewClaudeRunner(), nil
+	case "openhands":
+		var cfg config.OpenHandsConfig
+		if len(ohCfg) > 0 {
+			cfg = ohCfg[0]
+		}
+		return NewOpenHandsRunner(cfg), nil
 	case "dry-run":
 		return NewDryRunRunner(), nil
 	default:
-		return nil, fmt.Errorf("unknown runner %q (available: claude, dry-run)", runnerName)
+		return nil, fmt.Errorf("unknown runner %q (available: claude, openhands, dry-run)", runnerName)
 	}
 }

@@ -16,7 +16,7 @@ FD (Feature Design)  →  SDD (Spec-Driven Development)  →  Code
 
 ## Stack
 
-- **CLI**: `bin/forgia` (bash)
+- **CLI**: `cmd/forgia/` (Go, Cobra)
 - **Task runner**: mise (install, run, status, doctor)
 - **Agent runtime**: OpenHands (Docker, headless mode)
 - **Vault**: Obsidian (dataview, kanban, templater)
