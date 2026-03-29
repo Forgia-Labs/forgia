@@ -133,7 +133,7 @@ Comprehensive integration tests covering the full MCP stack: server transport, p
 
 ### Output
 
-- **Commit(s)**: <!-- hash — to be filled after commit -->
+- **Commit(s)**: c033566
 - **PR**: —
 - **Files created/modified**:
   - `tests/integration_mcp_test.go` (new — 7 Server E2E subprocess tests)
