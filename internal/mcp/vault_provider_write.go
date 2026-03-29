@@ -81,6 +81,9 @@ func (p *VaultProvider) callFDUpdate(ctx context.Context, params map[string]any)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
+	if err := validateID(id, "fd"); err != nil {
+		return nil, err
+	}
 
 	// At least one field to update.
 	updateFields := []string{"status", "reviewed", "reviewer", "priority", "tags", "assignee", "upstream_issue"}
@@ -143,9 +146,16 @@ func (p *VaultProvider) callFDUpdate(ctx context.Context, params map[string]any)
 }
 
 func (p *VaultProvider) callSDDCreate(ctx context.Context, params map[string]any) (any, error) {
+	// Lock to prevent race between nextSDDID read and CreateSDD write.
+	p.sddMu.Lock()
+	defer p.sddMu.Unlock()
+
 	fdID, _ := params["fd"].(string)
 	if fdID == "" {
 		return nil, fmt.Errorf("fd is required")
+	}
+	if err := validateID(fdID, "fd"); err != nil {
+		return nil, err
 	}
 	title, _ := params["title"].(string)
 	if title == "" {
@@ -227,9 +237,15 @@ func (p *VaultProvider) callSDDUpdate(ctx context.Context, params map[string]any
 	if fdID == "" {
 		return nil, fmt.Errorf("fd is required")
 	}
+	if err := validateID(fdID, "fd"); err != nil {
+		return nil, err
+	}
 	id, _ := params["id"].(string)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
+	}
+	if err := validateID(id, "sdd"); err != nil {
+		return nil, err
 	}
 
 	// At least one field to update.

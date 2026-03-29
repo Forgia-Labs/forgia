@@ -47,7 +47,7 @@ func loadRegistry() (*skill.Registry, error) {
 
 // loadFullRegistry loads embedded skills and, if a vault + config exist,
 // also registers composite skills backed by MCP providers.
-func loadFullRegistry() (*skill.Registry, error) {
+func loadFullRegistry(ctx context.Context) (*skill.Registry, error) {
 	reg, err := loadRegistry()
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func loadFullRegistry() (*skill.Registry, error) {
 		return reg, nil
 	}
 
-	cfg, cfgErr := config.LoadConfig(context.TODO(), v.Dir())
+	cfg, cfgErr := config.LoadConfig(ctx, v.Dir())
 	if cfgErr != nil {
 		return reg, nil
 	}
@@ -82,7 +82,7 @@ func loadFullRegistry() (*skill.Registry, error) {
 }
 
 func runSkills(cmd *cobra.Command, args []string) error {
-	reg, err := loadFullRegistry()
+	reg, err := loadFullRegistry(cmd.Context())
 	if err != nil {
 		return err
 	}

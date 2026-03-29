@@ -20,9 +20,11 @@ type StdioTransport struct {
 }
 
 // NewStdioTransport creates a transport that reads from r and writes to w.
+// The reader is wrapped in io.LimitReader to enforce the 10MB request size limit
+// at the decode level, preventing full allocation before the size check.
 func NewStdioTransport(r io.Reader, w io.Writer) *StdioTransport {
 	return &StdioTransport{
-		dec: json.NewDecoder(r),
+		dec: json.NewDecoder(io.LimitReader(r, maxRequestSize+1)),
 		enc: json.NewEncoder(w),
 	}
 }

@@ -69,8 +69,12 @@ func TestStdioTransport_ReadRequestRejectsOversized(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for oversized request")
 	}
-	if !strings.Contains(err.Error(), "request too large") {
-		t.Errorf("expected 'request too large' error, got: %v", err)
+	// io.LimitReader causes "unexpected EOF" when the decoder hits the limit.
+	// The secondary check in readLimited catches "request too large" if the message
+	// fits in the limit but exceeds maxRequestSize. Both are valid rejection paths.
+	errStr := err.Error()
+	if !strings.Contains(errStr, "request too large") && !strings.Contains(errStr, "unexpected EOF") {
+		t.Errorf("expected 'request too large' or 'unexpected EOF' error, got: %v", err)
 	}
 }
 

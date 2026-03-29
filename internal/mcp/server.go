@@ -51,7 +51,9 @@ func (s *MCPServer) Serve(ctx context.Context) error {
 			if err == io.EOF {
 				return nil
 			}
-			// Malformed JSON — return parse error if we can.
+			// NOTE: json.Decoder does not recover after a genuine parse error (truncated
+			// or malformed JSON mid-stream). The continue here is best-effort — subsequent
+			// reads on the same stream will likely also fail and exit via io.EOF.
 			s.writeError(nil, -32700, "Parse error")
 			continue
 		}

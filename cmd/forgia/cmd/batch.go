@@ -81,7 +81,10 @@ var batchCmd = &cobra.Command{
 		bc := beads.NewClient()
 
 		// Build exec options matching exec.go — load config for max_turns.
-		v, _ := vault.Open(".")
+		v, vErr := vault.Open(".")
+		if vErr != nil {
+			slog.WarnContext(ctx, "could not open vault, using defaults", "error", vErr)
+		}
 		var systemCtx string
 		maxTurns := 200
 		if v != nil {

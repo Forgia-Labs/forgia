@@ -6,13 +6,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Deepzima/forgia/internal/guardrails"
 	"github.com/Deepzima/forgia/internal/vault"
 )
+
+// validIDPattern matches FD/SDD identifiers: FD-001, FD-a3f2, SDD-001, etc.
+// Rejects path traversal attempts like "../../etc/passwd".
+var validIDPattern = regexp.MustCompile(`^[A-Z]+-[a-zA-Z0-9]{1,10}$`)
+
+// validateID checks that an ID is safe to use in filesystem paths.
+func validateID(id, kind string) error {
+	if !validIDPattern.MatchString(id) {
+		return fmt.Errorf("invalid %s ID: %q", kind, id)
+	}
+	return nil
+}
 
 // VaultProvider exposes vault read and write operations as MCP tools.
 // Read: forgia_vault_fd_get, forgia_vault_fd_list, forgia_vault_sdd_get,
@@ -24,6 +38,7 @@ type VaultProvider struct {
 	vault    vault.Vault
 	guard    *guardrails.Guardrails
 	registry *ProviderRegistry
+	sddMu   sync.Mutex // protects nextSDDID + callSDDCreate to prevent race conditions
 }
 
 // Compile-time interface satisfaction check.
@@ -366,6 +381,9 @@ func (p *VaultProvider) callFDGet(ctx context.Context, params map[string]any) (a
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
+	if err := validateID(id, "fd"); err != nil {
+		return nil, err
+	}
 
 	fd, err := p.vault.GetFD(ctx, id)
 	if err != nil {
@@ -432,6 +450,12 @@ func (p *VaultProvider) callSDDGet(ctx context.Context, params map[string]any) (
 	if sddID == "" {
 		return nil, fmt.Errorf("id is required")
 	}
+	if err := validateID(fdID, "fd"); err != nil {
+		return nil, err
+	}
+	if err := validateID(sddID, "sdd"); err != nil {
+		return nil, err
+	}
 
 	sdd, err := p.vault.GetSDD(ctx, fdID, sddID)
 	if err != nil {
@@ -460,6 +484,9 @@ func (p *VaultProvider) callSDDList(ctx context.Context, params map[string]any) 
 	fdID, _ := params["fd"].(string)
 	if fdID == "" {
 		return nil, fmt.Errorf("fd is required")
+	}
+	if err := validateID(fdID, "fd"); err != nil {
+		return nil, err
 	}
 
 	sdds, err := p.vault.ListSDDs(ctx, fdID)
@@ -556,6 +583,11 @@ func (p *VaultProvider) callValidate(ctx context.Context, params map[string]any)
 	if path == "" && fdID == "" {
 		return nil, fmt.Errorf("either path or fd is required")
 	}
+	if fdID != "" {
+		if err := validateID(fdID, "fd"); err != nil {
+			return nil, err
+		}
+	}
 
 	var sddFiles []string
 	if fdID != "" {
@@ -599,6 +631,9 @@ func (p *VaultProvider) callThreatModelGet(_ context.Context, params map[string]
 	fdID, _ := params["fd"].(string)
 	if fdID == "" {
 		return nil, fmt.Errorf("fd is required")
+	}
+	if err := validateID(fdID, "fd"); err != nil {
+		return nil, err
 	}
 
 	tmPath := filepath.Join(p.vault.Dir(), "fd", fdID+"-threat-model.md")

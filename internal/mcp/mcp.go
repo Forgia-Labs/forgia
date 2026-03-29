@@ -5,7 +5,7 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
+	"log/slog"
 	"strings"
 	"sync"
 )
@@ -86,7 +86,7 @@ func (r *ProviderRegistry) StopAll() {
 
 	for name, p := range r.providers {
 		if err := p.Stop(); err != nil {
-			fmt.Fprintf(os.Stderr, "provider %s stop error: %v\n", name, err)
+			slog.Error("provider stop error", "provider", name, "error", err)
 		}
 	}
 }
