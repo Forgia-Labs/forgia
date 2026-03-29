@@ -38,17 +38,19 @@ Given FD identifier: $ARGUMENTS
 - [ ] Security guardrails reviewed (`.forgia/guardrails/deny.toml`)
 - [ ] No proposed interfaces expose or require secrets in plaintext
 - [ ] No file patterns in the FD would violate deny.toml read/write/execute rules
+- [ ] **Threat model** (advisory) — check if `.forgia/fd/FD-NNN-threat-model.md` exists. If present, note "Threat model available" and verify it covers the FD's components. If missing, flag as advisory: "Threat model non presente — considera `/fd-threat-model FD-NNN` per analisi di sicurezza." This is NOT a blocker — the FD can still pass review without a threat model.
 
 ### Verification
 - [ ] Verification criteria are defined and sufficient
 - [ ] Each criterion is objectively testable
 
-5. If ALL checks pass:
+5. If ALL checks pass (excluding advisory items):
    - Set `reviewed: true` and `reviewer: "claude"` in frontmatter
    - Update status to "approved"
    - Report: "APPROVATO — FD pronto per generazione SDD. Usa /fd-sdd FD-NNN"
+   - If any advisory items have recommendations, include them after the approval as "Note advisory" (e.g., missing threat model suggestion)
 
-6. If ANY check fails:
+6. If ANY non-advisory check fails:
    - Keep `reviewed: false`
    - List all failed checks with specific feedback
    - Report: "REVISIONE RICHIESTA" with action items

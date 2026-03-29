@@ -5,9 +5,9 @@
 Forgia enforces 3 gates before code reaches production:
 
 ```
-FD Review ──→ Arch Review ──→ SDD Generation ──→ Implementation ──→ Verification ──→ Close
- /fd-review    /fd-arch-review   /fd-sdd            agent executes     /fd-verify       /fd-close
- GATE 1        (optional)                                               GATE 2           GATE 3
+FD Review ──→ Arch Review ──→ Threat Model ──→ SDD Generation ──→ Implementation ──→ Verification ──→ Close
+ /fd-review   /fd-arch-review  /fd-threat-model  /fd-sdd           agent executes     /fd-verify       /fd-close
+ GATE 1        (optional)       (optional)                                               GATE 2           GATE 3
 ```
 
 ### Gate 1: FD Review (`/fd-review`)
@@ -27,6 +27,15 @@ After FD approval, before SDD generation:
 - **Advisory, not a gate** — the report informs but does not block `/fd-sdd`
 - Recommended for FDs that introduce new components, change interfaces, or touch multiple packages
 - Can be run repeatedly during FD authoring for iterative improvement
+
+### Optional: Threat Model (`/fd-threat-model`)
+
+Between FD Review and SDD Generation, run `/fd-threat-model FD-NNN` for security-sensitive FDs.
+
+- **When to run**: recommended for FDs that involve authentication, authorization, data storage, external integrations, or user-facing APIs
+- **What it produces**: `.forgia/fd/FD-NNN-threat-model.md` — a STRIDE-based security analysis with identified threats, risk ratings, and mitigation recommendations
+- **Advisory, not blocking**: the FD can proceed to SDD generation without a threat model. `/fd-review` will flag its absence as a suggestion, not a failure
+- **Downstream effects**: if a threat model exists, `/fd-sdd` automatically injects relevant mitigations into each SDD's constraints section
 
 ### Gate 2: Verification (`/fd-verify`)
 
