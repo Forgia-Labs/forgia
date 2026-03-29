@@ -1,7 +1,7 @@
 ---
 id: "FD-006"
 title: "MCP server + composite skills + slash command integration"
-status: in-progress
+status: closed
 priority: high
 effort: high
 impact: high
