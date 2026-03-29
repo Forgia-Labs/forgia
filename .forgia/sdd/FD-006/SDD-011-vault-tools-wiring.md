@@ -126,7 +126,7 @@ Update `tests/e2e_go_test.go` to verify `forgia mcp serve` exposes vault tools i
 
 ### Output
 
-- **Commit(s)**: pending
+- **Commit(s)**: 17ceb90
 - **PR**: pending
 - **Files created/modified**:
   - `cmd/forgia/cmd/mcp.go` — added VaultProvider registration with guardrails
