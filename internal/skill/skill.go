@@ -15,7 +15,18 @@ import (
 	"context"
 
 	"github.com/Deepzima/forgia/internal/mcp"
+	"github.com/Deepzima/forgia/internal/vault"
 )
+
+// VaultReader provides narrow, read-only access to vault data for composite skills.
+// Intentionally limited to 4 methods (Interface Segregation) — if widened, re-assess
+// what data composite skills can access (see FD-006 threat model).
+type VaultReader interface {
+	Constitution(ctx context.Context) (string, error)
+	GuardrailsRaw(ctx context.Context) ([]byte, error)
+	GetArchitecture(ctx context.Context) (*vault.Architecture, error)
+	ListContexts(ctx context.Context) ([]*vault.BoundedContext, error)
+}
 
 // Category groups skills by domain.
 type Category string
@@ -73,6 +84,9 @@ type CompositeSkill struct {
 
 	// Provider registry for calling the underlying tool.
 	registry *mcp.ProviderRegistry
+
+	// Vault provides read-only access to constitution, guardrails, architecture, contexts.
+	vault VaultReader
 }
 
 // Name returns the skill name.
