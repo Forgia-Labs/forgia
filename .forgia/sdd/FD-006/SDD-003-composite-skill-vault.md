@@ -120,7 +120,7 @@ This function instantiates all 7 composite skills (SDD-004 primitives + SDD-005 
 
 ### Output
 
-- **Commit(s)**: (pending)
+- **Commit(s)**: f597873
 - **PR**: (pending)
 - **Files created/modified**:
   - `internal/skill/skill.go` — added VaultReader interface, vault field on CompositeSkill
