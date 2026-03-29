@@ -35,9 +35,17 @@ type RunnerConfig struct {
 type ClaudeRunnerConfig struct {
 	PermissionMode  string `toml:"permission_mode"` // default, auto, bypassPermissions
 	MaxTurns        int    `toml:"max_turns"`
-	Sandbox         string `toml:"sandbox"` // none, native, docker
+	Sandbox         string `toml:"sandbox"` // none, apple-container, docker
 	UseRTK          bool   `toml:"use_rtk"`
 	RTKTrackSavings bool   `toml:"rtk_track_savings"`
+
+	// Sandbox options.
+	SandboxImage         string   `toml:"sandbox_image"`
+	SandboxNetworkAllow  []string `toml:"sandbox_network_allow"`
+	SandboxWorkspaceMount string  `toml:"sandbox_workspace_mount"`
+	SandboxSeccompFromDeny bool   `toml:"sandbox_seccomp_from_deny"`
+	SandboxAuditLog      bool     `toml:"sandbox_audit_log"`
+	SandboxServicesFromSDD bool   `toml:"sandbox_services_from_sdd"`
 
 	// Agent Teams.
 	TeamEnabled      bool   `toml:"team_enabled"`
