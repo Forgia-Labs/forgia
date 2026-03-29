@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Deepzima/forgia/internal/guardrails"
@@ -30,9 +31,9 @@ var _ VaultReader = (*vault.FileVault)(nil)
 //	  4. search_code  — search_graph() + guardrails filtering
 //
 //	Higher-level (SDD-005):
-//	  5. impact-analysis — blast-radius + context-lookup combined
-//	  6. arch-validate   — architecture validation against contexts
-//	  7. design-assist   — constitution + architecture for design guidance
+//	  5. security_scan  — security pattern search + guardrails gap analysis
+//	  6. arch_coherence — call path vs documented architecture drift detection
+//	  7. context_map    — symbol-to-context mapping
 func RegisterCompositeSkills(reg *Registry, providerReg *mcp.ProviderRegistry, v VaultReader) error {
 	if providerReg == nil {
 		return fmt.Errorf("RegisterCompositeSkills: providerReg is required")
@@ -164,37 +165,9 @@ func RegisterCompositeSkills(reg *Registry, providerReg *mcp.ProviderRegistry, v
 		},
 
 		// --- Higher-level (SDD-005) ---
-
-		{
-			name:         "impact-analysis",
-			description:  "Analyze change impact across bounded contexts",
-			category:     CategoryDesign,
-			mode:         ModeMCPTool,
-			ProviderName: "code",
-			ProviderTool: "detect_changes",
-			registry:     providerReg,
-			vault:        v,
-		},
-		{
-			name:         "arch-validate",
-			description:  "Validate architecture against bounded contexts",
-			category:     CategoryArchitecture,
-			mode:         ModeMCPTool,
-			ProviderName: "code",
-			ProviderTool: "search_graph",
-			registry:     providerReg,
-			vault:        v,
-		},
-		{
-			name:         "design-assist",
-			description:  "Provide design guidance from constitution and architecture",
-			category:     CategoryDesign,
-			mode:         ModeMCPTool,
-			ProviderName: "code",
-			ProviderTool: "read_context",
-			registry:     providerReg,
-			vault:        v,
-		},
+		securityScanSkill(providerReg, v),
+		archCoherenceSkill(providerReg, v),
+		contextMapSkill(providerReg, v),
 	}
 
 	for _, s := range skills {
@@ -470,4 +443,324 @@ func filterResultPaths(ctx context.Context, result any, g *guardrails.Guardrails
 
 	resultMap["results"] = filtered
 	return resultMap
+}
+
+// --- Higher-level skill constructors (SDD-005) ---
+
+// securityPatternQueries defines the search queries for security-relevant code patterns.
+var securityPatternQueries = []string{
+	"auth", "authentication", "authorization",
+	"validate", "validation", "sanitize",
+	"crypto", "encrypt", "decrypt", "hash",
+	"secret", "password", "credential", "token",
+	"injection", "xss", "csrf",
+}
+
+// securityScanSkill creates the security_scan higher-level skill.
+// Searches codebase for security patterns (auth, validation, crypto, secrets,
+// input sanitization), then cross-references findings against deny.toml —
+// identifies gaps where code handles secrets but guardrails don't protect the files.
+// Returns file paths and pattern names ONLY, never actual secret values (SDD-005).
+func securityScanSkill(providerReg *mcp.ProviderRegistry, v VaultReader) *CompositeSkill {
+	return &CompositeSkill{
+		name:         "security_scan",
+		description:  "Security pattern search + guardrails gap analysis",
+		category:     CategoryKnowledge,
+		mode:         ModeMCPTool,
+		ProviderName: "code",
+		ProviderTool: "search_graph",
+		registry:     providerReg,
+		vault:        v,
+		graceful:     true,
+		PreProcess:   securityScanPreProcess,
+		PostProcess: func(ctx context.Context, result any) (any, error) {
+			return securityScanPostProcess(ctx, result, v)
+		},
+	}
+}
+
+// securityScanPreProcess builds security-focused search queries.
+// If no query is provided, uses all security pattern keywords.
+func securityScanPreProcess(_ context.Context, params map[string]any) (map[string]any, error) {
+	if params == nil {
+		params = make(map[string]any)
+	}
+	if _, ok := params["query"]; !ok {
+		params["query"] = strings.Join(securityPatternQueries, " ")
+	}
+	return params, nil
+}
+
+// securityScanPostProcess cross-references search results with deny.toml patterns.
+// Returns file paths and pattern names ONLY — never actual secret content.
+// Identifies guardrail gaps: files that handle security-sensitive code but aren't
+// protected by deny.toml [read] patterns.
+func securityScanPostProcess(ctx context.Context, result any, v VaultReader) (any, error) {
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		return result, nil
+	}
+
+	results, ok := resultMap["results"].([]any)
+	if !ok {
+		return result, nil
+	}
+
+	// Sanitize output: extract only path and name (no content/values).
+	var findings []map[string]any
+	var filePaths []string
+	for _, r := range results {
+		rm, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		path, _ := rm["path"].(string)
+		name, _ := rm["name"].(string)
+		finding := map[string]any{"path": path}
+		if name != "" {
+			finding["name"] = name
+		}
+		findings = append(findings, finding)
+		if path != "" {
+			filePaths = append(filePaths, path)
+		}
+	}
+
+	// Cross-reference with deny.toml to identify gaps.
+	var gaps []map[string]any
+	if v != nil {
+		raw, err := v.GuardrailsRaw(ctx)
+		if err == nil {
+			g, gErr := guardrails.Parse(raw)
+			if gErr == nil {
+				for _, path := range filePaths {
+					violations := g.CheckReadPaths(ctx, []string{path})
+					if len(violations) == 0 {
+						gaps = append(gaps, map[string]any{
+							"path":   path,
+							"status": "unprotected",
+							"detail": "handles security patterns but not in deny.toml read list",
+						})
+					}
+				}
+			} else {
+				slog.WarnContext(ctx, "security_scan: failed to parse guardrails, skipping gap analysis", "error", gErr)
+			}
+		} else {
+			slog.WarnContext(ctx, "security_scan: failed to read guardrails, skipping gap analysis", "error", err)
+		}
+	}
+
+	return map[string]any{
+		"findings":       findings,
+		"guardrail_gaps": gaps,
+	}, nil
+}
+
+// archCoherenceSkill creates the arch_coherence higher-level skill.
+// Traces call paths and compares against documented architecture — flags drift
+// where components call each other but aren't documented as connected (SDD-005).
+func archCoherenceSkill(providerReg *mcp.ProviderRegistry, v VaultReader) *CompositeSkill {
+	return &CompositeSkill{
+		name:         "arch_coherence",
+		description:  "Call path vs documented architecture drift detection",
+		category:     CategoryArchitecture,
+		mode:         ModeMCPTool,
+		ProviderName: "code",
+		ProviderTool: "trace_call_path",
+		registry:     providerReg,
+		vault:        v,
+		graceful:     true,
+		PostProcess: func(ctx context.Context, result any) (any, error) {
+			return archCoherencePostProcess(ctx, result, v)
+		},
+	}
+}
+
+// archCoherencePostProcess compares actual call paths against documented architecture.
+// Flags undocumented component dependencies (drift).
+// Degrades gracefully: if architecture or contexts are unavailable, returns raw
+// results with a warning instead of failing.
+func archCoherencePostProcess(ctx context.Context, result any, v VaultReader) (any, error) {
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		return result, nil
+	}
+
+	callPath, ok := resultMap["call_path"].([]any)
+	if !ok {
+		return result, nil
+	}
+
+	if v == nil {
+		resultMap["drift"] = []any{}
+		resultMap["_warning"] = "vault not available, drift detection skipped"
+		return resultMap, nil
+	}
+
+	arch, err := v.GetArchitecture(ctx)
+	if err != nil || arch == nil {
+		slog.WarnContext(ctx, "arch_coherence: architecture not available, skipping drift detection", "error", err)
+		resultMap["drift"] = []any{}
+		resultMap["_warning"] = "architecture not initialized, drift detection skipped"
+		return resultMap, nil
+	}
+
+	contexts, err := v.ListContexts(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "arch_coherence: contexts not available, skipping drift detection", "error", err)
+		resultMap["drift"] = []any{}
+		resultMap["_warning"] = "contexts not available, drift detection skipped"
+		return resultMap, nil
+	}
+
+	// Build documented dependency set from bounded contexts.
+	documented := buildDocumentedDeps(contexts)
+
+	// Detect undocumented connections in call path.
+	var drift []map[string]any
+	for i := 0; i < len(callPath)-1; i++ {
+		from, ok1 := callPath[i].(map[string]any)
+		to, ok2 := callPath[i+1].(map[string]any)
+		if !ok1 || !ok2 {
+			continue
+		}
+
+		fromFile, _ := from["file"].(string)
+		toFile, _ := to["file"].(string)
+
+		fromCtx := findContextForPath(fromFile, contexts)
+		toCtx := findContextForPath(toFile, contexts)
+
+		if fromCtx != "" && toCtx != "" && fromCtx != toCtx {
+			key := fromCtx + " → " + toCtx
+			if !documented[key] {
+				drift = append(drift, map[string]any{
+					"from":        fromCtx,
+					"to":          toCtx,
+					"source_file": fromFile,
+					"target_file": toFile,
+					"status":      "undocumented",
+				})
+			}
+		}
+	}
+
+	resultMap["drift"] = drift
+	return resultMap, nil
+}
+
+// buildDocumentedDeps builds a set of documented dependency edges from bounded contexts.
+// Format: "context_a → context_b".
+func buildDocumentedDeps(contexts []*vault.BoundedContext) map[string]bool {
+	deps := make(map[string]bool)
+	for _, c := range contexts {
+		for _, dep := range c.Dependencies.DependsOn {
+			deps[c.Name+" → "+dep] = true
+		}
+		for _, dep := range c.Dependencies.DependedBy {
+			deps[dep+" → "+c.Name] = true
+		}
+	}
+	return deps
+}
+
+// contextMapSkill creates the context_map higher-level skill.
+// Searches code and maps symbols/changes to their bounded context,
+// identifying cross-context boundaries (SDD-005).
+func contextMapSkill(providerReg *mcp.ProviderRegistry, v VaultReader) *CompositeSkill {
+	return &CompositeSkill{
+		name:         "context_map",
+		description:  "Symbol-to-context mapping",
+		category:     CategoryKnowledge,
+		mode:         ModeMCPTool,
+		ProviderName: "code",
+		ProviderTool: "search_graph",
+		registry:     providerReg,
+		vault:        v,
+		graceful:     true,
+		PostProcess: func(ctx context.Context, result any) (any, error) {
+			return contextMapPostProcess(ctx, result, v)
+		},
+	}
+}
+
+// contextMapPostProcess maps code symbols to bounded contexts and identifies
+// cross-context boundary crossings.
+// Degrades gracefully: if contexts are unavailable, returns raw results with a warning.
+func contextMapPostProcess(ctx context.Context, result any, v VaultReader) (any, error) {
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		return result, nil
+	}
+
+	results, ok := resultMap["results"].([]any)
+	if !ok {
+		return result, nil
+	}
+
+	if v == nil {
+		resultMap["_warning"] = "vault not available, context mapping skipped"
+		return resultMap, nil
+	}
+
+	contexts, err := v.ListContexts(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "context_map: contexts not available, skipping mapping", "error", err)
+		resultMap["_warning"] = "contexts not available, mapping skipped"
+		return resultMap, nil
+	}
+
+	// Map each result to its bounded context.
+	var mappings []map[string]any
+	contextNames := make(map[string]bool)
+
+	for _, r := range results {
+		rm, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		path, _ := rm["path"].(string)
+		name, _ := rm["name"].(string)
+		ctxName := findContextForPath(path, contexts)
+
+		m := map[string]any{
+			"path":   path,
+			"symbol": name,
+		}
+		if ctxName != "" {
+			m["context"] = ctxName
+			contextNames[ctxName] = true
+		}
+		mappings = append(mappings, m)
+	}
+
+	// Detect boundary crossings: adjacent results in different contexts.
+	var crossings []map[string]any
+	for i := 0; i < len(mappings)-1; i++ {
+		fromCtx, _ := mappings[i]["context"].(string)
+		toCtx, _ := mappings[i+1]["context"].(string)
+		if fromCtx != "" && toCtx != "" && fromCtx != toCtx {
+			crossings = append(crossings, map[string]any{
+				"from_context": fromCtx,
+				"to_context":   toCtx,
+				"from_path":    mappings[i]["path"],
+				"to_path":      mappings[i+1]["path"],
+			})
+		}
+	}
+
+	// Convert context set to sorted list.
+	contextList := make([]string, 0, len(contextNames))
+	for name := range contextNames {
+		contextList = append(contextList, name)
+	}
+	sort.Strings(contextList)
+
+	return map[string]any{
+		"mappings":  mappings,
+		"contexts":  contextList,
+		"crossings": crossings,
+	}, nil
 }

@@ -87,6 +87,11 @@ type CompositeSkill struct {
 
 	// Vault provides read-only access to constitution, guardrails, architecture, contexts.
 	vault VaultReader
+
+	// graceful enables graceful degradation for higher-level skills.
+	// When true, provider call errors are annotated in the result instead of
+	// being propagated, allowing PostProcess to produce partial results.
+	graceful bool
 }
 
 // Name returns the skill name.
@@ -129,7 +134,11 @@ func (s *CompositeSkill) Execute(ctx context.Context, params map[string]any) (an
 	// Call underlying provider.
 	result, err := s.registry.Call(ctx, mcp.ToolName(s.ProviderName, s.ProviderTool), params)
 	if err != nil {
-		return nil, err
+		if s.graceful {
+			result = map[string]any{"_error": err.Error()}
+		} else {
+			return nil, err
+		}
 	}
 
 	// Post-process (e.g., enrich with bounded context info, check guardrails).
