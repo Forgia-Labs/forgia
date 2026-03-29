@@ -11,7 +11,7 @@ created: "2026-03-29"
 reviewed: true
 reviewer: "claude"
 tags: ["enhancement", "phase:2-core"]
-upstream_issue: "Deepzima/forgia#58"
+upstream_issue: "Forgia-Labs/forgia#58"
 ---
 
 # FD-006: MCP server + composite skills + slash command integration
@@ -249,8 +249,8 @@ sequenceDiagram
 
 ## Notes / Note
 
-- Upstream: [Deepzima/forgia#58](https://github.com/Deepzima/forgia/issues/58)
-- Phase 1 reference: [Deepzima/forgia#36](https://github.com/Deepzima/forgia/issues/36)
+- Upstream: [Forgia-Labs/forgia#58](https://github.com/Forgia-Labs/forgia/issues/58)
+- Phase 1 reference: [Forgia-Labs/forgia#36](https://github.com/Forgia-Labs/forgia/issues/36)
 - Enhances: #27 (DDD skills), #22 (/fd-arch-review), #23 (/sdd-dry-run), #21 (/fd-threat-model), #35 (gate intelligente)
 - The MCP server implementation follows the reverse pattern of `MCPSubprocessProvider` in `internal/mcp/subprocess.go` — instead of sending requests and reading responses, it reads requests from stdin and writes responses to stdout
 - `ProviderRegistry.AllTools()` and `ProviderRegistry.Call()` already provide exactly what `tools/list` and `tools/call` handlers need — the server transport is thin glue
