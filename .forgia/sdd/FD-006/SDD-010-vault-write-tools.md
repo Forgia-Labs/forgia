@@ -150,7 +150,7 @@ Each write tool validates its input before calling vault methods:
 
 ### Output
 
-- **Commit(s)**: <!-- hash — to be filled after commit -->
+- **Commit(s)**: 2cbbcf7
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `internal/mcp/vault_provider_write.go` (new — 4 write handlers, validation, KG enrichment, ID generation helpers)
