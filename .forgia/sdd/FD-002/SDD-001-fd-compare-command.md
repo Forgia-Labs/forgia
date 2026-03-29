@@ -2,7 +2,7 @@
 id: "SDD-001"
 fd: "FD-002"
 title: "/fd-compare slash command"
-status: planned
+status: done
 agent: ""
 assigned_to: ""
 created: "2026-03-28"

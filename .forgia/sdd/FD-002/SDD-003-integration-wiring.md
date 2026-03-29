@@ -2,7 +2,7 @@
 id: "SDD-003"
 fd: "FD-002"
 title: "Integration Wiring — fd-review triggers auto-reject, E2E test"
-status: planned
+status: done
 agent: ""
 assigned_to: ""
 created: "2026-03-28"

@@ -2,7 +2,7 @@
 id: "SDD-002"
 fd: "FD-002"
 title: "Auto-reject competitors + status grouping"
-status: planned
+status: done
 agent: ""
 assigned_to: ""
 created: "2026-03-28"
