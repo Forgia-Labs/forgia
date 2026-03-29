@@ -1,7 +1,7 @@
 ---
 id: "FD-006"
 title: "MCP server + composite skills + slash command integration"
-status: closed
+status: in-progress
 priority: high
 effort: high
 impact: high
@@ -27,6 +27,8 @@ However, Forgia has no MCP **server** mode. This creates two problems:
 2. **Slash commands miss the knowledge graph.** Commands like `/fd-arch-review`, `/fd-threat-model`, and `/sdd-dry-run` scan the codebase using Glob/Grep/Read — basic text matching. The knowledge graph in `codebase-memory-mcp` offers parsed AST, semantic edges, and call graphs that would produce deeper, more accurate analysis. But slash commands have no way to call the composite skills that wrap these tools.
 
 Until the MCP server exists and slash commands can leverage it, agents get a subset of Forgia's potential, and the knowledge graph investment (Phase 1) delivers limited value.
+
+3. **Vault operations are not exposed as tools.** The MCP server currently only exposes knowledge graph composite skills (which require `codebase-memory-mcp`). But the core value — creating FDs, generating SDDs, reading vault state, updating statuses — is locked behind direct file I/O that only slash commands can do. Any MCP-compatible agent should be able to perform vault CRUD operations: create an FD, list SDDs, update status, validate an SDD, read a threat model. Without vault tools, the MCP server is useless when `codebase-memory-mcp` isn't installed.
 
 ## Solutions Considered / Soluzioni Considerate
 
@@ -154,6 +156,17 @@ sequenceDiagram
 | `forgia_security_scan` | Security pattern params | Auth/validation/crypto findings cross-referenced with deny.toml gaps | Higher-level: `forgia_search_code` + vault guardrails |
 | `forgia_arch_coherence` | FD/architecture params | Actual call paths vs documented architecture, drift detection | Higher-level: `forgia_trace_calls` + `forgia_arch_init` + vault architecture |
 | `forgia_context_map` | Symbol/change params | Changes mapped to bounded contexts | Higher-level: `forgia_search_code` + vault contexts |
+| `forgia_fd_create` | title, author, status, tags, upstream_issue, body sections | Created FD file path + ID | Vault write: `.forgia/fd/FD-NNN-kebab.md` |
+| `forgia_fd_get` | FD identifier (FD-NNN) | FD frontmatter + body content | Vault read |
+| `forgia_fd_list` | Optional status filter | List of FDs with id, title, status, priority, author | Vault read |
+| `forgia_fd_update` | FD identifier + fields to update (status, reviewed, reviewer, etc.) | Updated FD confirmation | Vault write |
+| `forgia_sdd_create` | fd, title, scope, interfaces, constraints, acceptance criteria | Created SDD file path + ID | Vault write: `.forgia/sdd/FD-NNN/SDD-NNN.md` |
+| `forgia_sdd_get` | FD identifier + SDD identifier | SDD frontmatter + body content | Vault read |
+| `forgia_sdd_list` | FD identifier, optional status filter | List of SDDs with id, title, status, agent | Vault read |
+| `forgia_sdd_update` | FD + SDD identifier + fields to update (status, agent, work log) | Updated SDD confirmation | Vault write |
+| `forgia_validate` | SDD file path or FD identifier | Validation result (errors, warnings) | Vault read + guardrails check |
+| `forgia_status` | None | Full dashboard (FDs, SDDs, OPS, exec logs) | Vault read |
+| `forgia_threat_model_get` | FD identifier | Threat model content (if exists), null otherwise | Vault read: `.forgia/fd/FD-NNN-threat-model.md` |
 | MCP reachability check | Slash command startup | Boolean: MCP available or not | Check if `forgia mcp serve` process is reachable |
 | Slash command MCP path | Composite skill name + params | Tool result from knowledge graph | Slash command calls MCP tool instead of Glob/Grep/Read |
 | Config template | `[mcp.providers.*]` TOML | Provider configuration for auto-registration | File in `modules/vault-template/config.toml` |
@@ -168,6 +181,10 @@ sequenceDiagram
 6. SDD-006: Slash command MCP integration — update 6 slash commands (`fd-arch-review`, `fd-threat-model`, `arch-init`, `arch-review`, `arch-update`, `sdd-dry-run`) to check MCP reachability and prefer composite skills when available. Each command adds a "Step 0: Check MCP" that attempts a `tools/list` call with a 3-second timeout to verify connectivity — this tests actual reachability, not just process existence. If reachable, use composite skill path; if timeout or error, fall back to direct Glob/Grep/Read scanning. **Security (from threat model)**: cache MCP reachability result for the duration of a single command invocation; document that MCP communication is local-only (stdio, same user)
 7. SDD-007: Integration tests — mock MCP provider, namespace routing tests, composite skill execution tests, server E2E test (send JSON-RPC on stdin, verify response on stdout), slash command fallback test. **Security (from threat model)**: add test for `forgia_search_code` guardrails filtering (mock tool returns deny.toml-matched paths → verify stripped); add test for oversized JSON-RPC request → verify server rejects gracefully
 8. SDD-008: Integration wiring — startup initialization (load config → create providers → register skills → start server), graceful shutdown, `forgia skills` lists composite skills, update `review-process.md` documentation
+9. SDD-009: Vault read tools — implement MCP tools for vault read operations: `forgia_fd_get`, `forgia_fd_list`, `forgia_sdd_get`, `forgia_sdd_list`, `forgia_status`, `forgia_validate`, `forgia_threat_model_get`. Each tool is a `ToolProvider` implementation that calls `vault.Vault` methods directly. Register as a `VaultProvider` in the MCP server alongside the existing `ProviderRegistry`. These tools work without `codebase-memory-mcp` — they only need the `.forgia/` vault.
+10. SDD-010: Vault write tools — implement MCP tools for vault write operations: `forgia_fd_create`, `forgia_fd_update`, `forgia_sdd_create`, `forgia_sdd_update`. Each tool validates input, applies guardrails (deny.toml write patterns), and calls `vault.Vault` methods. **Security**: write tools must respect `deny.toml` `[write]` patterns — never write to constitution.md, config.toml, or deny.toml itself. Input validation: reject empty titles, invalid status values, malformed IDs.
+11. SDD-011: Vault tools integration tests + wiring — register `VaultProvider` in MCP server startup path (SDD-008 update). Integration tests: create FD via MCP → list FDs → verify created; create SDD → validate → verify. E2E test: full cycle via MCP tools (create FD → create SDD → update status → list). Update `forgia mcp serve` to register vault tools on startup.
+12. SDD-012: `/fd-new` and `/fd-sdd` MCP integration — update `/fd-new` to check MCP reachability and, when available, call `forgia_fd_create` instead of writing files directly. **ID convention change**: when MCP is available, `/fd-new` uses the hash-based ID from `vault.NewFDID()` (e.g., `FD-a3f2`) instead of sequential numbering (e.g., `FD-007`). This aligns with the Go canonical ID generation. Update `/fd-sdd` similarly to call `forgia_sdd_create` when MCP available. Both commands fall back to direct file I/O with sequential IDs when MCP unavailable.
 
 ## Constraints / Vincoli
 
@@ -212,6 +229,23 @@ sequenceDiagram
 - [ ] `forgia_security_scan` returns file locations only, never secret content (threat model mitigation)
 - [ ] MCP server rejects JSON-RPC requests larger than 10MB (threat model mitigation)
 - [ ] Every `tools/call` invocation logged with tool name + timestamp (threat model mitigation)
+- [ ] `forgia_fd_create` creates FD in vault, returns file path + ID
+- [ ] `forgia_fd_get` reads FD by identifier, returns frontmatter + body
+- [ ] `forgia_fd_list` lists all FDs with id, title, status, priority, author
+- [ ] `forgia_fd_update` updates FD frontmatter fields (status, reviewed, reviewer)
+- [ ] `forgia_sdd_create` creates SDD in vault under correct FD directory
+- [ ] `forgia_sdd_get` reads SDD by FD + SDD identifier
+- [ ] `forgia_sdd_list` lists SDDs for an FD with id, title, status, agent
+- [ ] `forgia_sdd_update` updates SDD frontmatter (status, agent, assigned_to)
+- [ ] `forgia_validate` validates SDD and returns errors/warnings
+- [ ] `forgia_status` returns full dashboard data (FDs, SDDs, OPS, exec logs)
+- [ ] `forgia_threat_model_get` returns threat model content or null if not present
+- [ ] Vault write tools respect deny.toml `[write]` patterns
+- [ ] Vault tools work without codebase-memory-mcp (no knowledge graph dependency)
+- [ ] MCP server exposes vault tools alongside composite skills in `tools/list`
+- [x] `/fd-new` calls `forgia_fd_create` when MCP available, uses hash-based ID (`FD-xxxx`)
+- [x] `/fd-new` falls back to sequential ID (`FD-NNN`) when MCP unavailable
+- [x] `/fd-sdd` calls `forgia_sdd_create` when MCP available
 
 ## Notes / Note
 
