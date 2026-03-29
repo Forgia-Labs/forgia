@@ -127,7 +127,7 @@ Implement 3 higher-level composite skills that compose primitive skills (SDD-004
 
 ### Output
 
-- **Commit(s)**: <!-- hash — to be filled after commit -->
+- **Commit(s)**: a5dea35
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `internal/skill/skill.go` — added `graceful` field to CompositeSkill, updated Execute for graceful degradation
