@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"text/tabwriter"
 
 	forgia "github.com/Deepzima/forgia"
+	"github.com/Deepzima/forgia/internal/config"
+	"github.com/Deepzima/forgia/internal/mcp"
 	"github.com/Deepzima/forgia/internal/runner"
 	"github.com/Deepzima/forgia/internal/skill"
 	"github.com/Deepzima/forgia/internal/vault"
@@ -25,7 +28,7 @@ var skillCmd = &cobra.Command{
 
 var skillsCmd = &cobra.Command{
 	Use:   "skills",
-	Short: "List all available slash commands",
+	Short: "List all available skills (slash commands + MCP tools)",
 	RunE:  runSkills,
 }
 
@@ -42,8 +45,44 @@ func loadRegistry() (*skill.Registry, error) {
 	return reg, nil
 }
 
-func runSkills(cmd *cobra.Command, args []string) error {
+// loadFullRegistry loads embedded skills and, if a vault + config exist,
+// also registers composite skills backed by MCP providers.
+func loadFullRegistry() (*skill.Registry, error) {
 	reg, err := loadRegistry()
+	if err != nil {
+		return nil, err
+	}
+
+	v, vErr := vault.Open(".")
+	if vErr != nil {
+		return reg, nil
+	}
+
+	cfg, cfgErr := config.LoadConfig(context.TODO(), v.Dir())
+	if cfgErr != nil {
+		return reg, nil
+	}
+
+	providers := mcp.NewProviderRegistry()
+	// Register providers without starting them — we only need tool metadata for listing.
+	for name, pcfg := range cfg.MCP.Providers {
+		if pcfg.Namespace == "" {
+			pcfg.Namespace = name
+		}
+		providers.Register(mcp.NewMetadataProvider(name, pcfg.Namespace))
+	}
+	if cfg.Knowledge.Provider != "" {
+		if _, exists := cfg.MCP.Providers["code"]; !exists {
+			providers.Register(mcp.NewMetadataProvider("code", "code"))
+		}
+	}
+
+	_ = skill.RegisterCompositeSkills(reg, providers, v.(skill.VaultReader))
+	return reg, nil
+}
+
+func runSkills(cmd *cobra.Command, args []string) error {
+	reg, err := loadFullRegistry()
 	if err != nil {
 		return err
 	}
@@ -52,11 +91,17 @@ func runSkills(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(w, "NAME\tCATEGORY\tDESCRIPTION\n")
-	fmt.Fprintf(w, "────\t────────\t───────────\n")
+	fmt.Fprintf(w, "NAME\tMODE\tCATEGORY\tDESCRIPTION\n")
+	fmt.Fprintf(w, "────\t────\t────────\t───────────\n")
 
 	for _, s := range reg.All() {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", s.Name(), s.Category(), s.Description())
+		mode := "Slash Command"
+		if s.Mode() == skill.ModeMCPTool {
+			mode = "MCP Tool"
+		} else if s.Mode() == skill.ModeBoth {
+			mode = "Both"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Name(), mode, s.Category(), s.Description())
 	}
 	w.Flush()
 

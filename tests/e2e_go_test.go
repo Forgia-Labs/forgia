@@ -253,6 +253,17 @@ func writeFDWithAuthor(t *testing.T, dir, id, title, status, author string) {
 	}
 }
 
+// setupMinimalVault creates a bare .forgia/ directory so that
+// vault.Open(".") succeeds. Used by MCP E2E tests that spawn
+// forgia mcp serve in temp dirs.
+func setupMinimalVault(t *testing.T, dir string) {
+	t.Helper()
+	forgiaDir := filepath.Join(dir, ".forgia")
+	if err := os.MkdirAll(forgiaDir, 0o755); err != nil {
+		t.Fatalf("create .forgia/: %v", err)
+	}
+}
+
 // --- E2E Tests ---
 
 func TestE2E_Init(t *testing.T) {
@@ -457,13 +468,37 @@ func TestE2E_Skills(t *testing.T) {
 	output, code := runForgia(t, dir, "skills")
 	assertExitCode(t, code, 0)
 	assertContains(t, output, "Available Skills")
+	assertContains(t, output, "MODE")
 
-	// Verify known skills are listed.
-	for _, skill := range []string{"fd-new", "fd-review", "fd-sdd", "sdd-assign", "arch-review", "arch-init"} {
+	// Verify known embedded skills are listed.
+	for _, skill := range []string{"fd-new", "fd-review", "fd-sdd", "sdd-assign", "arch-review"} {
 		assertContains(t, output, skill)
 	}
 
+	assertContains(t, output, "Slash Command")
 	assertContains(t, output, "Total:")
+}
+
+func TestE2E_Skills_WithVault(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	output, code := runForgia(t, dir, "skills")
+	assertExitCode(t, code, 0)
+
+	// With vault + config (which includes knowledge.provider = "codebase-memory-mcp"),
+	// composite skills should also be listed.
+	assertContains(t, output, "MCP Tool")
+	for _, skill := range []string{
+		"blast_radius", "arch_init", "trace_calls", "search_code",
+		"security_scan", "arch_coherence", "context_map",
+	} {
+		assertContains(t, output, skill)
+	}
+
+	// Should have 26 total (19 embedded + 7 composite).
+	assertContains(t, output, "Total: 26 skills")
 }
 
 func TestE2E_Version(t *testing.T) {

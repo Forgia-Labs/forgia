@@ -610,6 +610,86 @@ func findProjectRoot(t *testing.T) string {
 	}
 }
 
+// --- SDD-008: skill listing integration tests ---
+
+// TestIntegration_SkillListing_EmbeddedAndComposite verifies that a registry
+// loaded with embedded skills + composite skills contains the expected 26 skills
+// with correct mode designations.
+func TestIntegration_SkillListing_EmbeddedAndComposite(t *testing.T) {
+	t.Parallel()
+
+	root := findProjectRoot(t)
+	cmdFS := os.DirFS(filepath.Join(root, "modules", "claude-commands"))
+
+	reg := NewRegistry()
+	if err := reg.LoadEmbedded(cmdFS); err != nil {
+		t.Fatalf("LoadEmbedded: %v", err)
+	}
+
+	// Register composite skills with a mock provider.
+	providerReg := mcp.NewProviderRegistry()
+	providerReg.Register(&mockProvider{
+		name:    "code",
+		healthy: true,
+		tools: []mcp.ToolDefinition{
+			{Name: "get_architecture", Namespace: "code"},
+			{Name: "detect_changes", Namespace: "code"},
+			{Name: "trace_call_path", Namespace: "code"},
+			{Name: "search_graph", Namespace: "code"},
+		},
+	})
+
+	v := &mockVaultReader{}
+	if err := RegisterCompositeSkills(reg, providerReg, v); err != nil {
+		t.Fatalf("RegisterCompositeSkills: %v", err)
+	}
+
+	all := reg.All()
+
+	// Count by mode.
+	var slashCount, mcpCount int
+	for _, s := range all {
+		switch s.Mode() {
+		case ModeSlashCommand:
+			slashCount++
+		case ModeMCPTool:
+			mcpCount++
+		}
+	}
+
+	if slashCount != 19 {
+		t.Errorf("expected 19 slash commands, got %d", slashCount)
+	}
+	if mcpCount != 7 {
+		t.Errorf("expected 7 MCP tools, got %d", mcpCount)
+	}
+	if got := len(all); got != 26 {
+		t.Errorf("expected 26 total skills, got %d", got)
+	}
+
+	// Verify all 7 composite skills are present with MCPTool mode.
+	compositeNames := []string{
+		"arch_init", "blast_radius", "trace_calls", "search_code",
+		"security_scan", "arch_coherence", "context_map",
+	}
+	for _, name := range compositeNames {
+		s, ok := reg.Get(name)
+		if !ok {
+			t.Errorf("composite skill %q not found in registry", name)
+			continue
+		}
+		if s.Mode() != ModeMCPTool {
+			t.Errorf("skill %q mode = %q, want %q", name, s.Mode(), ModeMCPTool)
+		}
+	}
+
+	// Verify MCPToolDefs returns definitions for all composite skills.
+	defs := reg.MCPToolDefs()
+	if len(defs) != 7 {
+		t.Errorf("MCPToolDefs() returned %d, want 7", len(defs))
+	}
+}
+
 // jsonMarshalAny converts a value to string for content inspection.
 func jsonMarshalAny(v any) (string, error) {
 	return marshalToString(v), nil

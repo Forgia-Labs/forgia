@@ -18,6 +18,8 @@ func mcpServer(t *testing.T) (*json.Encoder, *json.Decoder, func()) {
 	t.Helper()
 
 	dir := t.TempDir()
+	setupMinimalVault(t, dir)
+
 	cmd := exec.Command(binaryPath, "mcp", "serve")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "HOME="+dir)
@@ -151,9 +153,9 @@ func TestIntegration_ServerE2E_ToolsList(t *testing.T) {
 		t.Fatal("missing tools array in result")
 	}
 
-	// No providers configured → empty tools list.
-	if len(tools) != 0 {
-		t.Errorf("expected 0 tools (no providers configured), got %d", len(tools))
+	// Minimal vault → no external providers, but 7 composite skills are registered.
+	if len(tools) != 7 {
+		t.Errorf("expected 7 tools (composite skills, no external providers), got %d", len(tools))
 	}
 }
 
@@ -243,6 +245,8 @@ func TestIntegration_ServerE2E_OversizedRequest(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	setupMinimalVault(t, dir)
+
 	cmd := exec.Command(binaryPath, "mcp", "serve")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "HOME="+dir)
@@ -314,6 +318,8 @@ func TestIntegration_ServerE2E_StdinEOF(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	setupMinimalVault(t, dir)
+
 	cmd := exec.Command(binaryPath, "mcp", "serve")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "HOME="+dir)
