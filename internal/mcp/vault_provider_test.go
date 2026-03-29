@@ -19,6 +19,12 @@ type mockVaultForProvider struct {
 	dir  string
 	fds  []*vault.FD
 	sdds map[string][]*vault.SDD // fdID → SDDs
+
+	// Write capture fields for testing write tools.
+	createdFDs  []*vault.FD
+	updatedFDs  []*vault.FD
+	createdSDDs []*vault.SDD
+	updatedSDDs []*vault.SDD
 }
 
 func (m *mockVaultForProvider) Dir() string { return m.dir }
@@ -45,8 +51,14 @@ func (m *mockVaultForProvider) GetFD(_ context.Context, id string) (*vault.FD, e
 	}
 	return nil, fmt.Errorf("FD %q not found", id)
 }
-func (m *mockVaultForProvider) CreateFD(_ context.Context, _ *vault.FD) error { return nil }
-func (m *mockVaultForProvider) UpdateFD(_ context.Context, _ *vault.FD) error { return nil }
+func (m *mockVaultForProvider) CreateFD(_ context.Context, fd *vault.FD) error {
+	m.createdFDs = append(m.createdFDs, fd)
+	return nil
+}
+func (m *mockVaultForProvider) UpdateFD(_ context.Context, fd *vault.FD) error {
+	m.updatedFDs = append(m.updatedFDs, fd)
+	return nil
+}
 func (m *mockVaultForProvider) SDDs(fdID string) iter.Seq[*vault.SDD] {
 	return func(yield func(*vault.SDD) bool) {
 		for _, sdd := range m.sdds[fdID] {
@@ -67,8 +79,14 @@ func (m *mockVaultForProvider) GetSDD(_ context.Context, fdID, sddID string) (*v
 	}
 	return nil, fmt.Errorf("SDD %q not found in FD %q", sddID, fdID)
 }
-func (m *mockVaultForProvider) CreateSDD(_ context.Context, _ *vault.SDD) error { return nil }
-func (m *mockVaultForProvider) UpdateSDD(_ context.Context, _ *vault.SDD) error { return nil }
+func (m *mockVaultForProvider) CreateSDD(_ context.Context, sdd *vault.SDD) error {
+	m.createdSDDs = append(m.createdSDDs, sdd)
+	return nil
+}
+func (m *mockVaultForProvider) UpdateSDD(_ context.Context, sdd *vault.SDD) error {
+	m.updatedSDDs = append(m.updatedSDDs, sdd)
+	return nil
+}
 func (m *mockVaultForProvider) GetArchitecture(_ context.Context) (*vault.Architecture, error) {
 	return nil, fmt.Errorf("not implemented")
 }
@@ -152,8 +170,8 @@ func TestVaultProvider_Tools(t *testing.T) {
 	t.Parallel()
 	p := NewVaultProvider(newTestVault(t), nil, nil)
 	tools := p.Tools()
-	if len(tools) != 7 {
-		t.Fatalf("expected 7 tools, got %d", len(tools))
+	if len(tools) != 11 {
+		t.Fatalf("expected 11 tools, got %d", len(tools))
 	}
 
 	names := make(map[string]bool)
@@ -167,7 +185,11 @@ func TestVaultProvider_Tools(t *testing.T) {
 		}
 	}
 
-	expected := []string{"fd_get", "fd_list", "sdd_get", "sdd_list", "status", "validate", "threat_model_get"}
+	expected := []string{
+		"fd_get", "fd_list", "fd_create", "fd_update",
+		"sdd_get", "sdd_list", "sdd_create", "sdd_update",
+		"status", "validate", "threat_model_get",
+	}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("missing tool %q", name)
@@ -903,8 +925,8 @@ func TestVaultProvider_Registry(t *testing.T) {
 			found++
 		}
 	}
-	if found != 7 {
-		t.Errorf("expected 7 vault tools in registry, found %d", found)
+	if found != 11 {
+		t.Errorf("expected 11 vault tools in registry, found %d", found)
 	}
 }
 

@@ -14,10 +14,12 @@ import (
 	"github.com/Deepzima/forgia/internal/vault"
 )
 
-// VaultProvider exposes vault read operations as MCP tools.
-// Tools: forgia_vault_fd_get, forgia_vault_fd_list, forgia_vault_sdd_get,
+// VaultProvider exposes vault read and write operations as MCP tools.
+// Read: forgia_vault_fd_get, forgia_vault_fd_list, forgia_vault_sdd_get,
 // forgia_vault_sdd_list, forgia_vault_status, forgia_vault_validate,
 // forgia_vault_threat_model_get.
+// Write: forgia_vault_fd_create, forgia_vault_fd_update,
+// forgia_vault_sdd_create, forgia_vault_sdd_update.
 type VaultProvider struct {
 	vault    vault.Vault
 	guard    *guardrails.Guardrails
@@ -145,6 +147,179 @@ func (p *VaultProvider) Tools() []ToolDefinition {
 				"required": []string{"fd"},
 			},
 		},
+		// --- write tools ---
+		{
+			Name:        "fd_create",
+			Description: "Create a new Feature Design with auto-generated hash-based ID",
+			Namespace:   "vault",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"title": map[string]any{
+						"type":        "string",
+						"description": "Feature Design title",
+					},
+					"author": map[string]any{
+						"type":        "string",
+						"description": "Author name",
+					},
+					"status": map[string]any{
+						"type":        "string",
+						"description": "FD status (default: planned)",
+						"enum":        []string{"planned", "approved", "in-progress", "complete", "closed", "rejected", "abandoned"},
+					},
+					"priority": map[string]any{
+						"type":        "string",
+						"description": "Priority level (high, medium, low)",
+					},
+					"tags": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Tags for categorization",
+					},
+					"upstream_issue": map[string]any{
+						"type":        "string",
+						"description": "Link to upstream issue (e.g., GitHub issue URL)",
+					},
+					"body": map[string]any{
+						"type":        "string",
+						"description": "Markdown body content for the FD",
+					},
+				},
+				"required": []string{"title"},
+			},
+		},
+		{
+			Name:        "fd_update",
+			Description: "Update an existing Feature Design's frontmatter fields",
+			Namespace:   "vault",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id": map[string]any{
+						"type":        "string",
+						"description": "FD identifier (e.g., FD-001)",
+					},
+					"status": map[string]any{
+						"type":        "string",
+						"description": "New status",
+						"enum":        []string{"planned", "approved", "in-progress", "complete", "closed", "rejected", "abandoned"},
+					},
+					"reviewed": map[string]any{
+						"type":        "boolean",
+						"description": "Whether the FD has been reviewed",
+					},
+					"reviewer": map[string]any{
+						"type":        "string",
+						"description": "Reviewer name",
+					},
+					"priority": map[string]any{
+						"type":        "string",
+						"description": "Priority level",
+					},
+					"tags": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Tags for categorization",
+					},
+					"assignee": map[string]any{
+						"type":        "string",
+						"description": "Assigned person",
+					},
+					"upstream_issue": map[string]any{
+						"type":        "string",
+						"description": "Link to upstream issue",
+					},
+				},
+				"required": []string{"id"},
+			},
+		},
+		{
+			Name:        "sdd_create",
+			Description: "Create a new SDD under a Feature Design with auto-generated sequential ID",
+			Namespace:   "vault",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"fd": map[string]any{
+						"type":        "string",
+						"description": "Parent FD identifier (e.g., FD-001)",
+					},
+					"title": map[string]any{
+						"type":        "string",
+						"description": "SDD title",
+					},
+					"scope": map[string]any{
+						"type":        "string",
+						"description": "Scope description",
+					},
+					"constraints": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"language":  map[string]any{"type": "string"},
+							"framework": map[string]any{"type": "string"},
+						},
+						"description": "Language and framework constraints",
+					},
+					"acceptance_criteria": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Acceptance criteria as strings",
+					},
+					"tags": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Tags for categorization",
+					},
+				},
+				"required": []string{"fd", "title"},
+			},
+		},
+		{
+			Name:        "sdd_update",
+			Description: "Update an existing SDD's frontmatter fields",
+			Namespace:   "vault",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"fd": map[string]any{
+						"type":        "string",
+						"description": "Parent FD identifier (e.g., FD-001)",
+					},
+					"id": map[string]any{
+						"type":        "string",
+						"description": "SDD identifier (e.g., SDD-001)",
+					},
+					"status": map[string]any{
+						"type":        "string",
+						"description": "New status",
+						"enum":        []string{"planned", "validated", "in-progress", "done", "failed", "cancelled"},
+					},
+					"agent": map[string]any{
+						"type":        "string",
+						"description": "Agent executing the SDD (e.g., claude-code)",
+					},
+					"assigned_to": map[string]any{
+						"type":        "string",
+						"description": "Person or agent assigned",
+					},
+					"started": map[string]any{
+						"type":        "string",
+						"description": "Start timestamp (ISO 8601)",
+					},
+					"completed": map[string]any{
+						"type":        "string",
+						"description": "Completion timestamp (ISO 8601)",
+					},
+					"tags": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Tags for categorization",
+					},
+				},
+				"required": []string{"fd", "id"},
+			},
+		},
 	}
 }
 
@@ -167,6 +342,14 @@ func (p *VaultProvider) Call(ctx context.Context, tool string, params map[string
 		return p.callValidate(ctx, params)
 	case "threat_model_get":
 		return p.callThreatModelGet(ctx, params)
+	case "fd_create":
+		return p.callFDCreate(ctx, params)
+	case "fd_update":
+		return p.callFDUpdate(ctx, params)
+	case "sdd_create":
+		return p.callSDDCreate(ctx, params)
+	case "sdd_update":
+		return p.callSDDUpdate(ctx, params)
 	default:
 		return nil, fmt.Errorf("unknown vault tool: %s", tool)
 	}
