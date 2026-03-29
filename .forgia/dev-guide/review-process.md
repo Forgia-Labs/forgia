@@ -7,7 +7,7 @@ Forgia enforces 3 gates before code reaches production:
 ```
 FD Review ──→ Arch Review ──→ Threat Model ──→ SDD Generation ──→ Implementation ──→ Verification ──→ Close
  /fd-review   /fd-arch-review  /fd-threat-model  /fd-sdd           agent executes     /fd-verify       /fd-close
- GATE 1        (optional)                                               GATE 2           GATE 3
+ GATE 1        (optional)       (optional)                                               GATE 2           GATE 3
 ```
 
 ### Gate 1: FD Review (`/fd-review`)
