@@ -134,7 +134,7 @@ When MCP unavailable: current behavior preserved.
 
 ### Output
 
-- **Commit(s)**: <!-- hash — to be filled after commit -->
+- **Commit(s)**: b5af4db
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `modules/claude-commands/fd-new.md` — added Step 2.5 MCP check, conditional Step 6 ID generation, Step 7b MCP/fallback write path
