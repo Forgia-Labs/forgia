@@ -138,7 +138,7 @@ Then wrap each analysis step with: "If MCP available, use `forgia_<skill>`. Othe
 
 ### Output
 
-- **Commit(s)**: <!-- to be filled after commit -->
+- **Commit(s)**: 645f4bf
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `modules/claude-commands/fd-arch-review.md` — added Step 0.5, MCP conditional on Steps 2-3
