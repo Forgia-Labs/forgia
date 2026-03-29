@@ -176,7 +176,7 @@ Each tool has a JSON Schema for its `inputSchema` so Claude and other agents kno
 
 ### Output
 
-- **Commit(s)**: <!-- hash — to be filled after commit -->
+- **Commit(s)**: a2ec705
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `internal/mcp/vault_provider.go` — VaultProvider implementation (7 tools, ~730 LOC)
