@@ -17,31 +17,31 @@ tags: ["nuxt", "docs", "frontend"]
 
 ## Scope
 
-Lo scaffold `docs-site/` esiste già (Nuxt 4 + Nuxt UI v4, untracked). Questo SDD ha il compito di:
+The `docs-site/` scaffold already exists (Nuxt 4 + Nuxt UI v4, untracked). This SDD must:
 
-1. Aggiungere `@nuxt/content` v3 alle dipendenze
-2. Configurare `nuxt.config.ts` per: modulo Content, `baseURL: '/forgia/'`, prerender di tutte le pagine content
-3. Aggiungere il script `"generate": "nuxt generate"` a `package.json`
-4. Creare il layout `docs` con: sidebar navigazione, table of contents, area contenuto principale
-5. Creare la pagina catch-all `app/pages/[...slug].vue` che serve il contenuto Nuxt Content
-6. Creare la struttura directory `content/` con index e cartelle placeholder
-7. Committare tutto su `main` come primo commit tracciato di `docs-site/`
+1. Add `@nuxt/content` v3 to the dependencies
+2. Configure `nuxt.config.ts` with: Content module, `baseURL: '/forgia/'`, prerender for all content pages
+3. Add the `"generate": "nuxt generate"` script to `package.json`
+4. Create the `docs` layout with: navigation sidebar, table of contents, main content area
+5. Create the catch-all page `app/pages/docs/[...slug].vue` that serves Nuxt Content
+6. Create the `content/` directory structure with an index and placeholder folders
+7. Commit everything to `main` as the first tracked commit of `docs-site/`
 
-**Non** toccare la homepage (`app/pages/index.vue`) né i componenti esistenti (`HeroSection`, `FeaturesSection`, `CtaSection`).
+**Do not** touch the homepage (`app/pages/index.vue`) or existing components (`HeroSection`, `FeaturesSection`, `CtaSection`).
 
-### Stato attuale del repo
+### Current repository state
 
 ```
 docs-site/
 ├── app/
 │   ├── app.vue              ✅ header/footer UHeader/UFooter
-│   ├── app.config.ts        ✅ colori custom: forge, anvil
+│   ├── app.config.ts        ✅ custom colors: forge, anvil
 │   ├── assets/css/main.css  ✅
 │   ├── assets/images/       ✅
 │   ├── pages/index.vue      ✅ landing page
 │   └── components/          ✅ HeroSection, FeaturesSection, CtaSection
-├── nuxt.config.ts           ✅ (manca: @nuxt/content, baseURL, prerender)
-├── package.json             ✅ (mancano: @nuxt/content, script generate)
+├── nuxt.config.ts           ✅ (missing: @nuxt/content, baseURL, prerender)
+├── package.json             ✅ (missing: @nuxt/content, generate script)
 ├── pnpm-lock.yaml           ✅
 ├── pnpm-workspace.yaml      ✅
 ├── eslint.config.mjs        ✅
@@ -49,20 +49,20 @@ docs-site/
 └── public/                  ✅
 ```
 
-### Output atteso
+### Expected output
 
 ```
 docs-site/
 ├── app/
 │   ├── layouts/
-│   │   └── docs.vue         ← NUOVO: sidebar + TOC + content area
+│   │   └── docs.vue         ← NEW: sidebar + TOC + content area
 │   └── pages/
 │       └── docs/
-│           └── [...slug].vue ← NUOVO: catch-all per Nuxt Content
+│           └── [...slug].vue ← NEW: catch-all for Nuxt Content
 ├── content/
-│   ├── index.md             ← NUOVO: redirect o intro breve
+│   ├── index.md             ← NEW: redirect or short intro
 │   ├── getting-started/
-│   │   └── .gitkeep         ← placeholder (contenuto in SDD-002)
+│   │   └── .gitkeep         ← placeholder (content in SDD-002)
 │   ├── fd/
 │   │   └── .gitkeep
 │   ├── sdd/
@@ -71,100 +71,100 @@ docs-site/
 │   │   └── .gitkeep
 │   └── constitution/
 │       └── .gitkeep
-├── nuxt.config.ts           ← MODIFICATO
-└── package.json             ← MODIFICATO
+├── nuxt.config.ts           ← MODIFIED
+└── package.json             ← MODIFIED
 ```
 
-## Interfaces / Interfacce
+## Interfaces
 
-| Interface / Interfaccia | Type / Tipo | Description / Descrizione |
-|-------------------------|-------------|---------------------------|
-| `nuxt.config.ts` | Config | Esporta config con `@nuxt/content`, `baseURL: '/forgia/'`, prerender `/**` |
-| `app/layouts/docs.vue` | Vue SFC | Layout con slot `default` per il contenuto, sidebar sinistra, TOC destra |
-| `app/pages/docs/[...slug].vue` | Vue SFC | Pagina catch-all che usa `<ContentDoc />` o `queryCollection()` |
-| `content/` directory | Filesystem | Struttura cartelle per SDD-002 — contratto: `getting-started/`, `fd/`, `sdd/`, `cli/`, `constitution/` |
-| `package.json` | JSON | Script `generate: nuxt generate`, dipendenza `@nuxt/content` v3 |
+| Interface | Type | Description |
+|-----------|------|-------------|
+| `nuxt.config.ts` | Config | Exports config with `@nuxt/content`, `baseURL: '/forgia/'`, prerender `/**` |
+| `app/layouts/docs.vue` | Vue SFC | Layout with `default` slot for content, left sidebar, right TOC |
+| `app/pages/docs/[...slug].vue` | Vue SFC | Catch-all page using `<ContentDoc />` or `queryCollection()` |
+| `content/` directory | Filesystem | Folder structure for SDD-002 — contract: `getting-started/`, `fd/`, `sdd/`, `cli/`, `constitution/` |
+| `package.json` | JSON | `generate: nuxt generate` script, `@nuxt/content` v3 dependency |
 
-**Contratto con SDD-002**: la struttura `content/` creata qui deve corrispondere esattamente alle cartelle in cui SDD-002 scriverà i file Markdown.
+**Contract with SDD-002**: the `content/` structure created here must exactly match the folders where SDD-002 will write Markdown files.
 
-**Contratto con SDD-003**: `nuxt generate` (aggiunto qui) deve completare con exit code 0 affinché il workflow CI possa deployare.
+**Contract with SDD-003**: `nuxt generate` (added here) must complete with exit code 0 so that the CI workflow can deploy.
 
-## Constraints / Vincoli
+## Constraints
 
-- Language / Linguaggio: TypeScript, Vue 3 Composition API con `<script setup>`
+- Language: TypeScript, Vue 3 Composition API with `<script setup>`
 - Framework: Nuxt 4, Nuxt UI v4 (`@nuxt/ui: ^4.6.0`), Nuxt Content v3 (`@nuxt/content: ^3.x`)
-- Package manager: `pnpm` (non usare npm o yarn)
-- `baseURL` obbligatorio: `/forgia/` — senza trailing slash nelle route, con trailing slash nel baseURL
-- Prerender: configurare `nitro.prerender.routes` o `routeRules` per prerenderizzare `/docs/**`
-- Il layout `docs.vue` deve usare **solo componenti Nuxt UI v4** per sidebar e TOC (es. `UNavigationMenu`, `UContentToc` o equivalenti disponibili)
-- Strict TypeScript: nessun `any` esplicito nelle nuove pagine/layout
-- Non modificare `app/pages/index.vue` né i componenti landing page
-- Rispettare il pattern ESLint esistente (commaDangle: never, braceStyle: 1tbs)
-- I file in `deny.toml` non devono essere toccati: nessun `.env`, nessun secret, nessun file di configurazione Forgia
+- Package manager: `pnpm` (do not use npm or yarn)
+- `baseURL` required: `/forgia/` — no trailing slash in routes, trailing slash in baseURL
+- Prerender: configure `nitro.prerender.routes` or `routeRules` to prerender `/docs/**`
+- The `docs.vue` layout must use **only Nuxt UI v4 components** for sidebar and TOC (e.g. `UNavigationMenu`, `UContentToc` or equivalent available components)
+- Strict TypeScript: no explicit `any` in new pages/layouts
+- Do not modify `app/pages/index.vue` or landing page components
+- Respect the existing ESLint pattern (commaDangle: never, braceStyle: 1tbs)
+- Files listed in `deny.toml` must not be touched: no `.env`, no secrets, no Forgia config files
 
 ## Best Practices
 
-- Error handling: se `queryCollection()` restituisce null, mostrare una pagina 404 esplicita (non silently fail)
-- Naming: componenti Vue in PascalCase, file in kebab-case
-- Style: Composition API `<script setup>` su tutti i nuovi componenti/pagine; no Options API
-- Il layout docs deve essere mobile-responsive (sidebar collassabile su mobile usando `USlideover` o pattern equivalente)
-- Non aggiungere CSS custom: usare solo Tailwind utility classes e componenti Nuxt UI
+- Error handling: if `queryCollection()` returns null, show an explicit 404 page (do not silently fail)
+- Naming: Vue components in PascalCase, files in kebab-case
+- Style: Composition API `<script setup>` on all new components/pages; no Options API
+- The docs layout must be mobile-responsive (collapsible sidebar on mobile using `USlideover` or equivalent pattern)
+- Do not add custom CSS: use only Tailwind utility classes and Nuxt UI components
 
 ## Test Requirements
 
-| Type / Tipo | What / Cosa | Coverage |
-|-------------|-------------|----------|
-| Build | `pnpm run generate` completa senza errori | 100% — build deve passare |
-| Build | Asset path: nessun 404 su `/forgia/` come baseURL | Verificare output `.output/public/` |
-| Manual | Layout docs visualizzato correttamente su `/docs/` con sidebar | Smoke test locale `pnpm dev` |
-| TypeScript | `pnpm run typecheck` senza errori | 100% |
-| Lint | `pnpm run lint` senza errori | 100% |
+| Type | What | Coverage |
+|------|------|----------|
+| Build | `pnpm run generate` completes without errors | 100% — build must pass |
+| Build | Asset paths: no 404s with `/forgia/` as baseURL | Verify `.output/public/` output |
+| Manual | Docs layout correctly rendered at `/docs/` with sidebar | Local smoke test `pnpm dev` |
+| TypeScript | `pnpm run typecheck` with no errors | 100% |
+| Lint | `pnpm run lint` with no errors | 100% |
 
-## Acceptance Criteria / Criteri di Accettazione
+## Acceptance Criteria
 
-- [ ] `@nuxt/content` v3 aggiunto a `package.json` e installato via `pnpm install`
-- [ ] `nuxt.config.ts` include `@nuxt/content` in `modules` e `baseURL: '/forgia/'`
-- [ ] Script `"generate": "nuxt generate"` presente in `package.json`
-- [ ] `pnpm run generate` completa senza errori e produce `.output/public/`
-- [ ] `app/layouts/docs.vue` esiste con sidebar navigazione e area contenuto principale
-- [ ] `app/pages/docs/[...slug].vue` esiste e serve contenuto Nuxt Content
-- [ ] Struttura `content/` creata con le 5 cartelle: `getting-started/`, `fd/`, `sdd/`, `cli/`, `constitution/`
-- [ ] `pnpm run typecheck` e `pnpm run lint` passano senza errori
-- [ ] Tutto committato su `main` con messaggio `feat(FD-007): add Nuxt Content and docs layout`
+- [ ] `@nuxt/content` v3 added to `package.json` and installed via `pnpm install`
+- [ ] `nuxt.config.ts` includes `@nuxt/content` in `modules` and `baseURL: '/forgia/'`
+- [ ] Script `"generate": "nuxt generate"` present in `package.json`
+- [ ] `pnpm run generate` completes without errors and produces `.output/public/`
+- [ ] `app/layouts/docs.vue` exists with navigation sidebar and main content area
+- [ ] `app/pages/docs/[...slug].vue` exists and serves Nuxt Content
+- [ ] `content/` structure created with 5 folders: `getting-started/`, `fd/`, `sdd/`, `cli/`, `constitution/`
+- [ ] `pnpm run typecheck` and `pnpm run lint` pass without errors
+- [ ] Everything committed to `main` with message `feat(FD-007): add Nuxt Content and docs layout`
 
-## Context / Contesto
+## Context
 
-- [ ] `docs-site/nuxt.config.ts` — config attuale (no Content, no baseURL)
-- [ ] `docs-site/package.json` — dipendenze attuali (no @nuxt/content)
-- [ ] `docs-site/app/app.vue` — layout root con UHeader/UFooter; il layout docs si inserisce tra questi
-- [ ] `docs-site/app/app.config.ts` — colori custom `forge` e `anvil`
-- [ ] `docs/getting-started.md` — contenuto di riferimento (non copiare, usare come guida struttura)
-- [ ] Docs Nuxt Content v3: https://content.nuxt.com/
-- [ ] Docs Nuxt UI v4: https://ui.nuxt.com/
+- [ ] `docs-site/nuxt.config.ts` — current config (no Content, no baseURL)
+- [ ] `docs-site/package.json` — current dependencies (no @nuxt/content)
+- [ ] `docs-site/app/app.vue` — root layout with UHeader/UFooter; the docs layout sits inside this
+- [ ] `docs-site/app/app.config.ts` — custom colors `forge` and `anvil`
+- [ ] `docs/getting-started.md` — reference content (do not copy, use as structural guide)
+- [ ] Nuxt Content v3 docs: https://content.nuxt.com/
+- [ ] Nuxt UI v4 docs: https://ui.nuxt.com/
 
 ## Constitution Check
 
-- [ ] Rispetta code standards: TypeScript strict, no any, Composition API
-- [ ] Rispetta commit conventions: `feat(FD-007): add Nuxt Content and docs layout`
-- [ ] No hardcoded secrets: nessun token, nessuna API key
-- [ ] Tests definiti: build test + typecheck + lint
+- [ ] Respects code standards: TypeScript strict, no any, Composition API
+- [ ] Respects commit conventions: `feat(FD-007): add Nuxt Content and docs layout`
+- [ ] No hardcoded secrets: no tokens, no API keys
+- [ ] Tests defined: build test + typecheck + lint
 
 ---
 
-## Work Log / Diario di Lavoro
+## Work Log
 
-> Questa sezione è **obbligatoria**. Deve essere compilata dall'agent o dallo sviluppatore durante e dopo l'esecuzione.
+> This section is **mandatory**. Must be filled by the agent or developer during and after execution.
 
-### Agent / Agente
+### Agent
 
 - **Executor**: <!-- openhands | claude-code | manual | name -->
 - **Started**: <!-- timestamp -->
 - **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Duration**: <!-- total time -->
 
-### Decisions / Decisioni
+### Decisions
 
-1. <!-- decisione 1: cosa e perché -->
+1. <!-- decision 1: what and why -->
 
 ### Output
 
@@ -182,8 +182,8 @@ docs-site/
   - `docs-site/content/cli/.gitkeep`
   - `docs-site/content/constitution/.gitkeep`
 
-### Retrospective / Retrospettiva
+### Retrospective
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked**:
+- **What didn't**:
+- **Suggestions for future FDs**:

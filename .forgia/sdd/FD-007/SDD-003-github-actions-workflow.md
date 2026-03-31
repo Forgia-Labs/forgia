@@ -17,19 +17,19 @@ tags: ["ci-cd", "github-actions", "github-pages"]
 
 ## Scope
 
-Creare il workflow GitHub Actions `.github/workflows/docs.yml` che:
+Create the GitHub Actions workflow `.github/workflows/docs.yml` that:
 
-1. Si attiva **solo al push di un tag di release** con pattern `v*.*.*`
-2. Installa le dipendenze Node con `pnpm` (usando cache)
-3. Esegue `pnpm run generate` nella directory `docs-site/`
-4. Carica l'artifact con `actions/upload-pages-artifact`
-5. Deploya su GitHub Pages con `actions/deploy-pages`
+1. Triggers **only on push of a release tag** matching `v*.*.*`
+2. Installs Node dependencies with `pnpm` (using cache)
+3. Runs `pnpm run generate` in the `docs-site/` directory
+4. Uploads the artifact with `actions/upload-pages-artifact`
+5. Deploys to GitHub Pages with `actions/deploy-pages`
 
-**Dipendenza**: SDD-001 deve essere completato — `pnpm run generate` deve esistere e funzionare.
+**Dependency**: SDD-001 must be completed — `pnpm run generate` must exist and work.
 
-Il workflow NON deve attivarsi su push a `main`, push a branch, o pull request — solo su tag `v*.*.*`.
+The workflow must NOT trigger on push to `main`, push to branches, or pull requests — only on `v*.*.*` tags.
 
-### File da creare
+### File to create
 
 ```
 .github/
@@ -37,7 +37,7 @@ Il workflow NON deve attivarsi su push a `main`, push a branch, o pull request �
     └── docs.yml
 ```
 
-### Struttura workflow attesa
+### Expected workflow structure
 
 ```yaml
 name: Deploy Documentation
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10          # versione pnpm da pnpm-workspace.yaml o package.json
+          version: 10          # verify pnpm version from pnpm-workspace.yaml or package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -92,94 +92,94 @@ jobs:
         uses: actions/deploy-pages@v4
 ```
 
-**Note implementative**:
-- Verificare la versione esatta di `pnpm` da `docs-site/package.json` o `pnpm-workspace.yaml` prima di hardcodare
-- `cache-dependency-path` deve puntare a `docs-site/pnpm-lock.yaml` (non alla root)
-- Il job `deploy` richiede `environment: github-pages` per il deploy protetto
-- `concurrency: cancel-in-progress: false` evita di cancellare un deploy in corso se arriva un secondo tag in rapida successione
+**Implementation notes**:
+- Verify the exact `pnpm` version from `docs-site/package.json` or `pnpm-workspace.yaml` before hardcoding
+- `cache-dependency-path` must point to `docs-site/pnpm-lock.yaml` (not the repo root)
+- The `deploy` job requires `environment: github-pages` for protected deployment
+- `concurrency: cancel-in-progress: false` prevents cancelling an in-progress deploy if a second tag is pushed in quick succession
 
-## Interfaces / Interfacce
+## Interfaces
 
-| Interface / Interfaccia | Type / Tipo | Description / Descrizione |
-|-------------------------|-------------|---------------------------|
-| Trigger | GitHub webhook `push.tags` | Si attiva solo su `v*.*.*` — NON su push a branch o main |
-| `docs-site/.output/public/` | Directory | Output di `nuxt generate` (SDD-001) — artifact da caricare |
-| `actions/upload-pages-artifact@v3` | GitHub Action | Impacchetta `.output/public/` per Pages |
-| `actions/deploy-pages@v4` | GitHub Action | Deploya l'artifact su `forgia-labs.github.io/forgia/` |
-| `permissions: pages: write, id-token: write` | OIDC | Obbligatori per deploy GitHub Pages senza PAT |
+| Interface | Type | Description |
+|-----------|------|-------------|
+| Trigger | GitHub webhook `push.tags` | Fires only on `v*.*.*` — NOT on branch pushes or main |
+| `docs-site/.output/public/` | Directory | Output of `nuxt generate` (SDD-001) — artifact to upload |
+| `actions/upload-pages-artifact@v3` | GitHub Action | Packages `.output/public/` for Pages |
+| `actions/deploy-pages@v4` | GitHub Action | Deploys the artifact to `forgia-labs.github.io/forgia/` |
+| `permissions: pages: write, id-token: write` | OIDC | Required for GitHub Pages deploy without a PAT |
 
-**Contratto con SDD-001**: il path `docs-site/.output/public/` deve esistere dopo `nuxt generate`. Se SDD-001 cambia il path di output, questo workflow va aggiornato di conseguenza.
+**Contract with SDD-001**: the path `docs-site/.output/public/` must exist after `nuxt generate`. If SDD-001 changes the output path, this workflow must be updated accordingly.
 
-## Constraints / Vincoli
+## Constraints
 
-- Language / Linguaggio: YAML (GitHub Actions syntax)
-- Il trigger deve essere **esclusivamente** `on: push: tags: ['v*.*.*']` — nessun `push: branches`, nessun `pull_request`, nessun `workflow_dispatch` (a meno che non sia esplicitamente richiesto in futuro)
-- `permissions` a livello di workflow (non di job): `contents: read`, `pages: write`, `id-token: write`
-- `concurrency.cancel-in-progress: false` — non cancellare deploy in corso
-- Node version: 22 LTS (compatibile con Nuxt 4)
-- pnpm: usare `pnpm/action-setup@v4` con versione da lockfile, non installare globalmente con npm
-- `--frozen-lockfile` obbligatorio in CI — fallisce se il lockfile non è aggiornato
-- Il workflow non deve leggere secret (nessun `${{ secrets.XXX }}`) — GitHub Pages OIDC non richiede PAT
-- Rispetta `deny.toml`: nessun `echo $GITHUB_TOKEN`, nessuna esposizione di credenziali nei log
+- Language: YAML (GitHub Actions syntax)
+- The trigger must be **exclusively** `on: push: tags: ['v*.*.*']` — no `push: branches`, no `pull_request`, no `workflow_dispatch` (unless explicitly requested in future)
+- `permissions` at workflow level (not job level): `contents: read`, `pages: write`, `id-token: write`
+- `concurrency.cancel-in-progress: false` — do not cancel in-progress deploys
+- Node version: 22 LTS (compatible with Nuxt 4)
+- pnpm: use `pnpm/action-setup@v4` with version from lockfile, do not install globally via npm
+- `--frozen-lockfile` required in CI — fails if lockfile is not up to date
+- The workflow must not read secrets (no `${{ secrets.XXX }}`) — GitHub Pages OIDC does not require a PAT
+- Respects `deny.toml`: no `echo $GITHUB_TOKEN`, no credential exposure in logs
 
 ## Best Practices
 
-- Error handling: ogni step deve fallire esplicitamente se il precedente fallisce (comportamento default GitHub Actions — non usare `continue-on-error: true`)
-- Naming: job names descrittivi (`build`, `deploy`), step names in inglese
-- Style: YAML indentato con 2 spazi, nessuna tab
-- Versioni action pinned: usare tag di versione major (es. `@v4`) — non `@latest`, non SHA per ora
+- Error handling: every step must fail explicitly if the previous one fails (default GitHub Actions behaviour — do not use `continue-on-error: true`)
+- Naming: descriptive job names (`build`, `deploy`), step names in English
+- Style: YAML indented with 2 spaces, no tabs
+- Action versions pinned: use major version tags (e.g. `@v4`) — not `@latest`, not SHAs for now
 
 ## Test Requirements
 
-| Type / Tipo | What / Cosa | Coverage |
-|-------------|-------------|----------|
-| Manual | Push di tag `v0.0.1-docs-test` su branch di test — verifica che il workflow si attivi | Smoke test pre-merge |
-| Negative | Push di commit a `main` senza tag — verifica che il workflow NON si attivi | Trigger isolation |
-| CI | `pnpm install --frozen-lockfile` non fallisce (lockfile aggiornato) | Build job |
-| CI | `pnpm run generate` produce `docs-site/.output/public/` | Build job |
+| Type | What | Coverage |
+|------|------|----------|
+| Manual | Push tag `v0.0.1-docs-test` on a test branch — verify workflow triggers | Pre-merge smoke test |
+| Negative | Push a commit to `main` without a tag — verify workflow does NOT trigger | Trigger isolation |
+| CI | `pnpm install --frozen-lockfile` does not fail (lockfile up to date) | Build job |
+| CI | `pnpm run generate` produces `docs-site/.output/public/` | Build job |
 
-## Acceptance Criteria / Criteri di Accettazione
+## Acceptance Criteria
 
-- [ ] File `.github/workflows/docs.yml` creato e valido (nessun errore di syntax YAML)
-- [ ] Il workflow si attiva SOLO su push di tag `v*.*.*` — verificato con `on:` block
-- [ ] Il workflow NON include trigger su `push: branches` o `pull_request`
-- [ ] `permissions: pages: write, id-token: write` presenti
-- [ ] Job `build` usa pnpm con cache e `--frozen-lockfile`
-- [ ] Job `deploy` usa `actions/deploy-pages@v4` con `environment: github-pages`
+- [ ] File `.github/workflows/docs.yml` created and valid (no YAML syntax errors)
+- [ ] Workflow triggers ONLY on push of tag `v*.*.*` — verified with `on:` block
+- [ ] Workflow does NOT include triggers for `push: branches` or `pull_request`
+- [ ] `permissions: pages: write, id-token: write` present
+- [ ] `build` job uses pnpm with cache and `--frozen-lockfile`
+- [ ] `deploy` job uses `actions/deploy-pages@v4` with `environment: github-pages`
 - [ ] Commit: `chore(FD-007): add GitHub Actions workflow for docs deployment`
 
-## Context / Contesto
+## Context
 
-- [ ] `docs-site/package.json` — verificare script `generate` e versione pnpm
-- [ ] `docs-site/pnpm-lock.yaml` — path necessario per `cache-dependency-path`
-- [ ] `docs-site/pnpm-workspace.yaml` — verificare versione pnpm dichiarata
-- [ ] `.forgia/guardrails/deny.toml` — nessun `echo $GITHUB_TOKEN` o pattern analoghi
-- [ ] Docs GitHub Actions OIDC: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect
-- [ ] Docs `actions/deploy-pages`: https://github.com/actions/deploy-pages
+- [ ] `docs-site/package.json` — verify `generate` script and pnpm version
+- [ ] `docs-site/pnpm-lock.yaml` — path required for `cache-dependency-path`
+- [ ] `docs-site/pnpm-workspace.yaml` — verify declared pnpm version
+- [ ] `.forgia/guardrails/deny.toml` — no `echo $GITHUB_TOKEN` or similar patterns
+- [ ] GitHub Actions OIDC docs: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect
+- [ ] `actions/deploy-pages` docs: https://github.com/actions/deploy-pages
 
 ## Constitution Check
 
-- [ ] Rispetta code standards: YAML valido, nessun secret hardcoded
-- [ ] Rispetta commit conventions: `chore(FD-007): add GitHub Actions workflow for docs deployment`
-- [ ] No hardcoded secrets: usa OIDC, nessun `secrets.XXX` necessario
-- [ ] Tests definiti: smoke test manuale con tag di test
+- [ ] Respects code standards: valid YAML, no hardcoded secrets
+- [ ] Respects commit conventions: `chore(FD-007): add GitHub Actions workflow for docs deployment`
+- [ ] No hardcoded secrets: uses OIDC, no `secrets.XXX` needed
+- [ ] Tests defined: manual smoke test with test tag
 
 ---
 
-## Work Log / Diario di Lavoro
+## Work Log
 
-> Questa sezione è **obbligatoria**. Deve essere compilata dall'agent o dallo sviluppatore durante e dopo l'esecuzione.
+> This section is **mandatory**. Must be filled by the agent or developer during and after execution.
 
-### Agent / Agente
+### Agent
 
 - **Executor**: <!-- openhands | claude-code | manual | name -->
 - **Started**: <!-- timestamp -->
 - **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Duration**: <!-- total time -->
 
-### Decisions / Decisioni
+### Decisions
 
-1. <!-- decisione 1: cosa e perché -->
+1. <!-- decision 1: what and why -->
 
 ### Output
 
@@ -188,8 +188,8 @@ jobs:
 - **Files created/modified**:
   - `.github/workflows/docs.yml`
 
-### Retrospective / Retrospettiva
+### Retrospective
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked**:
+- **What didn't**:
+- **Suggestions for future FDs**:

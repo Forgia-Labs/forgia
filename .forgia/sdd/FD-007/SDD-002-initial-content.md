@@ -17,134 +17,134 @@ tags: ["docs", "content", "markdown"]
 
 ## Scope
 
-Scrivere il contenuto Markdown iniziale del sito di documentazione, strutturato nelle 5 sezioni del sito. Il contenuto usa come fonte di riferimento i file esistenti in `docs/` e `CLAUDE.md`, ma **non** viene copiato direttamente — va riscritto/adattato per il formato web (pagine corte, front matter, link interni).
+Write the initial Markdown content for the documentation site, structured across the 5 site sections. Content uses existing files in `docs/` and `CLAUDE.md` as reference, but is **not** copied verbatim — it must be rewritten/adapted for the web format (short pages, front matter, internal links).
 
-**Dipendenza**: SDD-001 deve essere completato prima — la struttura `content/` e il layout docs devono esistere.
+**Dependency**: SDD-001 must be completed first — the `content/` structure and docs layout must exist.
 
-### Sezioni da produrre
+### Sections to produce
 
 ```
 content/
-├── index.md                          ← redirect a /docs/getting-started
+├── index.md                          ← redirect to /docs/getting-started
 ├── getting-started/
-│   ├── index.md                      ← panoramica + prerequisiti
+│   ├── index.md                      ← overview + prerequisites
 │   ├── installation.md               ← install forgia CLI, mise, Claude Code
-│   └── first-feature.md              ← flusso completo: fd-new → fd-review → fd-sdd → exec → verify → close
+│   └── first-feature.md              ← full workflow: fd-new → fd-review → fd-sdd → exec → verify → close
 ├── fd/
-│   ├── index.md                      ← cos'è un FD, quando usarlo
-│   ├── creating.md                   ← /fd-new, da issue o free-text
-│   ├── reviewing.md                  ← /fd-review, cosa controlla
+│   ├── index.md                      ← what is an FD, when to use it
+│   ├── creating.md                   ← /fd-new, from issue or free-text
+│   ├── reviewing.md                  ← /fd-review, what it checks
 │   └── closing.md                    ← /fd-close, /fd-verify
 ├── sdd/
-│   ├── index.md                      ← cos'è un SDD, struttura
+│   ├── index.md                      ← what is an SDD, structure
 │   ├── generating.md                 ← /fd-sdd
 │   └── executing.md                  ← forgia exec, forgia batch, /sdd-assign
 ├── cli/
-│   ├── index.md                      ← panoramica comandi
+│   ├── index.md                      ← commands overview
 │   ├── init.md                       ← forgia init
 │   ├── status.md                     ← forgia status
 │   ├── doctor.md                     ← forgia doctor
 │   └── exec.md                       ← forgia exec / batch / watch
 └── constitution/
-    └── index.md                      ← regole, commit conventions, code standards
+    └── index.md                      ← rules, commit conventions, code standards
 ```
 
-### Front matter obbligatorio per ogni file
+### Required front matter for every file
 
 ```yaml
 ---
-title: "Titolo pagina"
-description: "Breve descrizione (usata per SEO e card social)"
+title: "Page title"
+description: "Short description (used for SEO and social cards)"
 navigation:
-  title: "Titolo sidebar"  # se diverso da title
+  title: "Sidebar title"  # if different from title
 ---
 ```
 
-### Tono e lingua
+### Tone and language
 
-- Sezioni narrative: italiano (coerente con le convention del progetto)
-- Blocchi di codice, nomi di comandi, variabili: inglese
-- Stile: conciso, tecnico, orientato all'azione — no marketing language
+- All content: English
+- Code blocks, command names, variable names: English
+- Style: concise, technical, action-oriented — no marketing language
 
-## Interfaces / Interfacce
+## Interfaces
 
-| Interface / Interfaccia | Type / Tipo | Description / Descrizione |
-|-------------------------|-------------|---------------------------|
-| `content/**/*.md` | Markdown + YAML front matter | Contratto con SDD-001: ogni file deve avere `title`, `description`, `navigation.title` nel front matter |
-| Navigazione sidebar | Front matter `navigation` | SDD-001 usa `queryCollection()` per costruire il menu — i file devono rispettare la struttura di directory |
-| Link interni | Markdown `[text](/docs/section/page)` | Tutti i link interni usano path assoluti con `/docs/` prefix (coerente con `baseURL: /forgia/`) |
+| Interface | Type | Description |
+|-----------|------|-------------|
+| `content/**/*.md` | Markdown + YAML front matter | Contract with SDD-001: every file must have `title`, `description`, `navigation.title` in front matter |
+| Sidebar navigation | Front matter `navigation` | SDD-001 uses `queryCollection()` to build the menu — files must respect the directory structure |
+| Internal links | Markdown `[text](/docs/section/page)` | All internal links use absolute paths with `/docs/` prefix (consistent with `baseURL: /forgia/`) |
 
-**Contratto con SDD-001**: le cartelle scritte qui devono corrispondere esattamente alla struttura creata da SDD-001. Non creare cartelle aggiuntive senza coordinamento.
+**Contract with SDD-001**: the folders written here must exactly match the structure created by SDD-001. Do not create additional folders without coordination.
 
-**Contratto con SDD-004**: ogni pagina prodotta qui deve essere raggiungibile via `nuxt generate` — i link interni rotti bloccano il build.
+**Contract with SDD-004**: every page produced here must be reachable via `nuxt generate` — broken internal links will fail the build.
 
-## Constraints / Vincoli
+## Constraints
 
-- Language / Linguaggio: Markdown (CommonMark) con YAML front matter
-- Framework: Nuxt Content v3 — usare MDC syntax se necessario per componenti Vue inline
-- Ogni file `.md` deve avere front matter con almeno: `title`, `description`
-- Non copiare blocchi di testo verbatim da `docs/functional-architecture.md` — i diagrammi Mermaid complessi vanno semplificati o rimossi per il sito (troppo verbosi per un utente che scopre Forgia)
-- Nessun link esterno non verificato
-- Nessun file `.env`, secret o credenziale nei contenuti
-- Il contenuto di `constitution/index.md` è una sintesi — NON una copia di `.forgia/constitution.md` (quello è la fonte autoritativa del progetto, non del sito)
+- Language: Markdown (CommonMark) with YAML front matter
+- Framework: Nuxt Content v3 — use MDC syntax if needed for inline Vue components
+- Every `.md` file must have front matter with at least: `title`, `description`
+- Do not copy verbatim blocks from `docs/functional-architecture.md` — complex Mermaid diagrams should be simplified or removed for the site (too verbose for a user discovering Forgia)
+- No unverified external links
+- No `.env` files, secrets or credentials in content
+- `constitution/index.md` is a summary — NOT a copy of `.forgia/constitution.md` (that is the project's authoritative source, not the site)
 
 ## Best Practices
 
-- Error handling: ogni pagina deve essere auto-contenuta — un utente che arriva direttamente alla pagina deve capire il contesto senza aver letto le precedenti
-- Naming: file in kebab-case, cartelle in kebab-case
-- Style: sezioni corte (max ~300 parole per pagina), molti esempi di codice, link interni frequenti
+- Error handling: every page must be self-contained — a user landing directly on the page must understand the context without having read the previous ones
+- Naming: files in kebab-case, folders in kebab-case
+- Style: short sections (max ~300 words per page), many code examples, frequent internal links
 
 ## Test Requirements
 
-| Type / Tipo | What / Cosa | Coverage |
-|-------------|-------------|----------|
-| Build | `pnpm run generate` con i file di contenuto prodotti — nessun link interno 404 | Tutti i file `.md` |
-| Manual | Ogni pagina è raggiungibile dalla sidebar navigazione | Verifica smoke test locale |
-| Manual | Front matter `title` e `description` presenti su ogni pagina | 100% dei file |
+| Type | What | Coverage |
+|------|------|----------|
+| Build | `pnpm run generate` with the produced content files — no broken internal links (no 404) | All `.md` files |
+| Manual | Every page is reachable from the sidebar navigation | Local smoke test |
+| Manual | Front matter `title` and `description` present on every page | 100% of files |
 
-## Acceptance Criteria / Criteri di Accettazione
+## Acceptance Criteria
 
-- [ ] Tutte le 5 sezioni presenti con almeno 1 pagina di contenuto ciascuna (non solo `.gitkeep`)
-- [ ] Ogni file `.md` ha front matter con `title` e `description`
-- [ ] `pnpm run generate` completa senza errori con questo contenuto (nessun link interno rotto)
-- [ ] La sidebar del layout docs mostra la navigazione strutturata nelle 5 sezioni
-- [ ] Getting Started / `first-feature.md` copre l'intero flusso: `fd-new → fd-review → fd-sdd → exec → verify → close`
-- [ ] CLI Reference documenta almeno: `init`, `status`, `doctor`, `exec`
+- [ ] All 5 sections present with at least 1 content page each (not just `.gitkeep`)
+- [ ] Every `.md` file has front matter with `title` and `description`
+- [ ] `pnpm run generate` completes without errors with this content (no broken internal links)
+- [ ] The docs layout sidebar shows structured navigation across the 5 sections
+- [ ] Getting Started / `first-feature.md` covers the full workflow: `fd-new → fd-review → fd-sdd → exec → verify → close`
+- [ ] CLI Reference documents at least: `init`, `status`, `doctor`, `exec`
 - [ ] Commit: `docs(FD-007): add initial documentation content`
 
-## Context / Contesto
+## Context
 
-- [ ] `docs/getting-started.md` — guida all'installazione e primo utilizzo (fonte principale per getting-started/)
-- [ ] `docs/concepts.md` — concetti FD/SDD (fonte per fd/ e sdd/)
-- [ ] `docs/functional-architecture.md` — architettura (riferimento per CLI e concetti avanzati)
-- [ ] `docs/go-architecture.md` — architettura Go (riferimento per CLI Reference)
-- [ ] `CLAUDE.md` — regole progetto (fonte per constitution/)
-- [ ] `.forgia/constitution.md` — regole immutabili (fonte per constitution/index.md)
-- [ ] `docs-site/app/layouts/docs.vue` — layout già creato da SDD-001: capire come viene costruita la sidebar per scrivere il front matter correttamente
+- [ ] `docs/getting-started.md` — installation and first-use guide (primary source for getting-started/)
+- [ ] `docs/concepts.md` — FD/SDD concepts (source for fd/ and sdd/)
+- [ ] `docs/functional-architecture.md` — architecture (reference for CLI and advanced concepts)
+- [ ] `docs/go-architecture.md` — Go architecture (reference for CLI Reference)
+- [ ] `CLAUDE.md` — project rules (source for constitution/)
+- [ ] `.forgia/constitution.md` — immutable rules (source for constitution/index.md)
+- [ ] `docs-site/app/layouts/docs.vue` — layout already created by SDD-001: understand how the sidebar is built to write front matter correctly
 
 ## Constitution Check
 
-- [ ] Rispetta code standards: Markdown valido, front matter YAML ben formato
-- [ ] Rispetta commit conventions: `docs(FD-007): add initial documentation content`
-- [ ] No hardcoded secrets: nessun token, nessuna chiave API nei contenuti
-- [ ] Tests definiti: build test (generate) + smoke test manuale
+- [ ] Respects code standards: valid Markdown, well-formed YAML front matter
+- [ ] Respects commit conventions: `docs(FD-007): add initial documentation content`
+- [ ] No hardcoded secrets: no tokens, no API keys in content
+- [ ] Tests defined: build test (generate) + manual smoke test
 
 ---
 
-## Work Log / Diario di Lavoro
+## Work Log
 
-> Questa sezione è **obbligatoria**. Deve essere compilata dall'agent o dallo sviluppatore durante e dopo l'esecuzione.
+> This section is **mandatory**. Must be filled by the agent or developer during and after execution.
 
-### Agent / Agente
+### Agent
 
 - **Executor**: <!-- openhands | claude-code | manual | name -->
 - **Started**: <!-- timestamp -->
 - **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Duration**: <!-- total time -->
 
-### Decisions / Decisioni
+### Decisions
 
-1. <!-- decisione 1: cosa e perché -->
+1. <!-- decision 1: what and why -->
 
 ### Output
 
@@ -169,8 +169,8 @@ navigation:
   - `docs-site/content/cli/exec.md`
   - `docs-site/content/constitution/index.md`
 
-### Retrospective / Retrospettiva
+### Retrospective
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked**:
+- **What didn't**:
+- **Suggestions for future FDs**:

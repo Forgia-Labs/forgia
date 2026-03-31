@@ -16,79 +16,79 @@ upstream_issue: "Forgia-Labs/forgia#79"
 
 # FD-007: Documentation Website with Nuxt UI + Nuxt Content
 
-## Problem / Problema
+## Problem
 
-Forgia non ha una documentazione pubblica navigabile. Le informazioni su come installarlo, inizializzare un vault, creare FD e SDD, e usare la CLI sono sparse tra README, `docs/`, e file interni del vault.
+Forgia has no public navigable documentation. Information about installation, vault setup, creating FDs and SDDs, and using the CLI is scattered across the README, `docs/`, and internal vault files.
 
-Questo crea due problemi concreti:
+This creates two concrete problems:
 
-1. **Onboarding lento**: un nuovo utente deve leggere più file Markdown in un repository Git per capire come usare il sistema — senza navigazione, ricerca, o struttura ipertestuale.
-2. **Nessuna presenza pubblica**: Forgia non ha un sito ufficiale. Per un progetto open source orientato all'adozione, l'assenza di documentazione web è un ostacolo all'uso e alla contribuzione.
+1. **Slow onboarding**: a new user must read multiple Markdown files in a Git repository to understand how the system works — with no navigation, search, or hypertext structure.
+2. **No public presence**: Forgia has no official website. For an open-source project aimed at adoption, the absence of web documentation is a barrier to use and contribution.
 
-Il contenuto esiste già in forma grezza (`docs/getting-started.md`, `docs/concepts.md`, `docs/functional-architecture.md`, ecc.). Il problema è la mancanza di un layer di presentazione che lo renda accessibile, ricercabile e mantenibile.
+The content already exists in raw form (`docs/getting-started.md`, `docs/concepts.md`, `docs/functional-architecture.md`, etc.). The problem is the lack of a presentation layer that makes it accessible, searchable, and maintainable.
 
-## Solutions Considered / Soluzioni Considerate
+## Solutions Considered
 
 ### Option A: Docusaurus (React)
 
-Generatore statico basato su React con supporto nativo per Markdown e versioning della documentazione.
+Static site generator based on React with native Markdown support and documentation versioning.
 
 - **Pro:**
-  - Matura e molto diffusa (Meta, Meta, React Native, Jest la usano)
-  - Ricerca full-text integrata con Algolia o lunr
-  - Versioning nativo dei docs
-- **Con / Contro:**
-  - Stack React — incompatibile con il resto del progetto (Vue/Nuxt)
-  - Richiede dipendenze Node/React distinte dallo stack scelto
-  - Personalizzazione UI più verbosa rispetto a Nuxt UI
+  - Mature and widely adopted (Meta, React Native, Jest all use it)
+  - Built-in full-text search with Algolia or lunr
+  - Native docs versioning
+- **Con:**
+  - React stack — incompatible with the rest of the project (Vue/Nuxt)
+  - Requires separate Node/React dependencies from the chosen stack
+  - UI customisation is more verbose than Nuxt UI
 
-### Option B (chosen) / Opzione B (scelta): Nuxt + Nuxt UI + Nuxt Content
+### Option B (chosen): Nuxt + Nuxt UI + Nuxt Content
 
-Sito statico generato con `nuxt generate`, contenuto Markdown gestito da Nuxt Content, UI con componenti Nuxt UI, deployment su GitHub Pages via GitHub Actions.
+Static site generated with `nuxt generate`, Markdown content managed by Nuxt Content, UI built with Nuxt UI components, deployed to GitHub Pages via GitHub Actions.
 
 - **Pro:**
-  - Stack coerente con la direzione tecnologica del progetto (Vue/Nuxt)
-  - Nuxt Content permette di scrivere docs in Markdown con front matter, componenti Vue inline, e query tramite `queryContent()`
-  - Nuxt UI fornisce componenti pronti (navigazione, table of contents, ricerca) senza CSS custom
-  - `nuxt generate` produce HTML statico — nessun server necessario su GitHub Pages
-  - Pipeline CI/CD semplice con `actions/deploy-pages`
-  - Co-localizzazione nel repo — docs e codice cambiano insieme, nessun CMS esterno
-- **Con / Contro:**
-  - Nuxt Content v3 è recente — API in evoluzione
-  - `nuxt generate` con molte pagine può essere più lento di Docusaurus in build molto grandi (non rilevante alla scala attuale)
+  - Stack consistent with the project's technical direction (Vue/Nuxt)
+  - Nuxt Content enables writing docs in Markdown with front matter, inline Vue components, and queries via `queryContent()`
+  - Nuxt UI provides ready-made components (navigation, table of contents, search) without custom CSS
+  - `nuxt generate` produces static HTML — no server required on GitHub Pages
+  - Simple CI/CD pipeline with `actions/deploy-pages`
+  - Co-located with the repo — docs and code change together, no external CMS
+- **Con:**
+  - Nuxt Content v3 is recent — API still evolving
+  - `nuxt generate` can be slower than Docusaurus for very large builds (not relevant at current scale)
 
-## Architecture / Architettura
+## Architecture
 
-### Integration Context / Contesto di Integrazione
+### Integration Context
 
 ```mermaid
 flowchart TD
-    subgraph existing ["Sistema Esistente"]
+    subgraph existing ["Existing System"]
         Repo["GitHub Repository\n(Forgia-Labs/forgia)"]
-        Docs["docs/*.md\n(contenuto grezzo)"]
+        Docs["docs/*.md\n(raw content)"]
         Readme["README.md"]
         CLI["forgia CLI\n(cmd/forgia/)"]
     end
 
-    subgraph new ["Nuovo — FD-007"]
+    subgraph new ["New — FD-007"]
         DocsSite["docs-site/\n(Nuxt app)"]
-        Content["docs-site/content/\n(Markdown curato)"]
-        GHPages["GitHub Pages\n(sito pubblico)"]
+        Content["docs-site/content/\n(curated Markdown)"]
+        GHPages["GitHub Pages\n(public site)"]
         CICD["GitHub Actions\ndocs.yml"]
     end
 
     Repo -->|"push tag v*.*.*"| CICD
     CICD -->|"nuxt generate"| DocsSite
     DocsSite -->|"deploy"| GHPages
-    Docs -->|"fonte di riferimento\n(non auto-importati)"| Content
-    CLI -->|"comandi documentati in"| Content
-    Readme -->|"collega a"| GHPages
+    Docs -->|"reference source\n(not auto-imported)"| Content
+    CLI -->|"commands documented in"| Content
+    Readme -->|"links to"| GHPages
 
     style existing fill:#f0f0f0,stroke:#999
     style new fill:#d4edda,stroke:#28a745
 ```
 
-### Data Flow / Flusso Dati
+### Data Flow
 
 ```mermaid
 sequenceDiagram
@@ -105,59 +105,60 @@ sequenceDiagram
     Nuxt->>Nuxt: render Markdown → HTML
     Nuxt-->>CI: .output/public/
     CI->>Pages: upload artifact + deploy
-    Pages-->>Dev: sito disponibile su forgia-labs.github.io/forgia/
+    Pages-->>Dev: site available at forgia-labs.github.io/forgia/
 
-    Note over Dev,Pages: Il workflow si attiva solo al push di un tag\ndi release (v*.*.*) — non su ogni commit a main
+    Note over Dev,Pages: Workflow triggers only on release tag push\n(v*.*.*) — not on every commit to main
 ```
 
-## Interfaces / Interfacce
+## Interfaces
 
-| Component / Componente | Input | Output | Protocol / Protocollo |
-|------------------------|-------|--------|-----------------------|
-| `docs-site/` (Nuxt app) | File Markdown in `content/` | HTML statico in `.output/public/` | `nuxt generate` (build-time) |
-| GitHub Actions (`docs.yml`) | Tag push `v*.*.*` | Artifact caricato su GitHub Pages | GitHub Actions YAML (`on: push: tags`) |
-| GitHub Pages | Artifact `actions/upload-pages-artifact` | Sito pubblico su `forgia-labs.github.io/forgia/` | `actions/deploy-pages` |
-| Navigazione sidebar | Front matter `title`, `navigation` nei `.md` | Menu laterale strutturato | Nuxt Content `queryCollection()` |
+| Component | Input | Output | Protocol |
+|-----------|-------|--------|----------|
+| `docs-site/` (Nuxt app) | Markdown files in `content/` | Static HTML in `.output/public/` | `nuxt generate` (build-time) |
+| GitHub Actions (`docs.yml`) | Tag push `v*.*.*` | Artifact uploaded to GitHub Pages | GitHub Actions YAML (`on: push: tags`) |
+| GitHub Pages | Artifact `actions/upload-pages-artifact` | Public site at `forgia-labs.github.io/forgia/` | `actions/deploy-pages` |
+| Sidebar navigation | Front matter `title`, `navigation` in `.md` files | Structured side menu | Nuxt Content `queryCollection()` |
 
-## Planned SDDs / SDD Previsti
+## Planned SDDs
 
-1. SDD-001: Completare e configurare `docs-site/` (scaffold già presente come directory non tracciata) — `nuxt.config.ts`, layout base, Nuxt UI + Content configurati, `baseURL: /forgia/`, primo commit tracciato
-2. SDD-002: Contenuto iniziale — sezioni Getting Started, FD Guide, SDD Guide, CLI Reference, Constitution (porte da `docs/` e CLAUDE.md)
-3. SDD-003: GitHub Actions workflow (`docs.yml`) — build, upload artifact, deploy su GitHub Pages con path filter
+1. SDD-001: Complete and configure `docs-site/` (scaffold already present as untracked directory) — `nuxt.config.ts`, base layout, Nuxt UI + Content configured, `baseURL: /forgia/`, first tracked commit
+2. SDD-002: Initial content — Getting Started, FD Guide, SDD Guide, CLI Reference, Constitution sections (ported from `docs/` and CLAUDE.md)
+3. SDD-003: GitHub Actions workflow (`docs.yml`) — build, upload artifact, deploy to GitHub Pages triggered on release tag
+4. SDD-004: Integration wiring — smoke test script, E2E verification, full pipeline confirmed live
 
-## Constraints / Vincoli
+## Constraints
 
-- Il sito vive in `docs-site/` come sotto-directory del repository esistente — nessun repo separato
-- `baseURL` deve corrispondere al path di GitHub Pages: `/forgia/`
-- Il workflow deve usare `actions/deploy-pages` e richiedere `permissions: pages: write, id-token: write`
-- Il contenuto è scritto in italiano per le sezioni narrative (coerente con le convention del progetto), inglese per UI e codice
-- Nessun CMS esterno — tutto Markdown nel repo
-- Il deploy si attiva **solo su tag di release** con pattern `v*.*.*` — trigger: `on: push: tags: ['v*.*.*']`; il CI principale (push a main/branch) non lo attiva
-- Nuxt UI v3 / Nuxt Content v3 (versioni più recenti compatibili con Nuxt 4)
+- The site lives in `docs-site/` as a sub-directory of the existing repository — no separate repo
+- `baseURL` must match the GitHub Pages path: `/forgia/`
+- The workflow must use `actions/deploy-pages` and require `permissions: pages: write, id-token: write`
+- Content is written in English for UI and code; narrative sections may be in English too
+- No external CMS — all Markdown in the repo
+- Deployment triggers **only on release tags** with pattern `v*.*.*` — trigger: `on: push: tags: ['v*.*.*']`; the main CI (push to main/branch) does not trigger it
+- Nuxt UI v3 / Nuxt Content v3 (latest versions compatible with Nuxt 4)
 
-## Verification / Verifica
+## Verification
 
-- [ ] `docs-site/` scaffold committed su `main` con `nuxt generate` che produce output valido
-- [ ] Navigazione funzionante: Getting Started, FD Guide, SDD Guide, CLI Reference
-- [ ] `nuxt generate` completa senza errori in CI
-- [ ] GitHub Actions workflow si attiva al push di un tag `v*.*.*` e NON su push a `main`
-- [ ] Sito deployato automaticamente su GitHub Pages dopo ogni tag di release
-- [ ] Layout mobile-responsive (verifica su viewport 375px e 1280px)
-- [ ] `baseURL: /forgia/` configurato correttamente — nessun asset 404
-- [ ] Problem clearly defined / Problema chiaramente definito
-- [ ] At least 2 solutions with pros/cons / Almeno 2 soluzioni con pro/contro
-- [ ] Architecture diagram present / Diagramma architetturale presente
-- [ ] Interfaces defined / Interfacce tra componenti definite
-- [ ] SDDs listed / SDD previsti elencati
-- [ ] Review completed / Review completata (`/fd-review`)
+- [ ] `docs-site/` scaffold committed to `main` with `nuxt generate` producing valid output
+- [ ] Navigation working: Getting Started, FD Guide, SDD Guide, CLI Reference
+- [ ] `nuxt generate` completes without errors in CI
+- [ ] GitHub Actions workflow triggers on push of a `v*.*.*` tag and NOT on push to `main`
+- [ ] Site deployed automatically to GitHub Pages after every release tag
+- [ ] Mobile-responsive layout (verified at 375px and 1280px viewports)
+- [ ] `baseURL: /forgia/` configured correctly — no asset 404s
+- [ ] Problem clearly defined
+- [ ] At least 2 solutions with pros/cons
+- [ ] Architecture diagram present
+- [ ] Interfaces defined between components
+- [ ] SDDs listed
+- [ ] Review completed (`/fd-review`)
 
-## Notes / Note
+## Notes
 
 Upstream: [Forgia-Labs/forgia#79](https://github.com/Forgia-Labs/forgia/issues/79)
 
-Il contenuto `docs/getting-started.md`, `docs/functional-architecture.md`, `docs/concepts.md` e `docs/go-architecture.md` sono la fonte di riferimento per popolare le sezioni del sito, ma andranno riscritti/adattati per il formato web (suddivisione in pagine più corte, aggiunta di front matter `title` e `navigation`).
+The content in `docs/getting-started.md`, `docs/functional-architecture.md`, `docs/concepts.md`, and `docs/go-architecture.md` is the reference source for populating the site sections, but must be rewritten/adapted for the web format (split into shorter pages, add front matter `title` and `navigation`).
 
-**Contesto auto-scoperto:**
-- [`.forgia/constitution.md`](.forgia/constitution.md) — regole immutabili del progetto
-- [`docs/functional-architecture.md`](docs/functional-architecture.md) — architettura funzionale e diagrammi
-- [`docs/getting-started.md`](docs/getting-started.md) — guida all'installazione e primo utilizzo
+**Auto-discovered context:**
+- [`.forgia/constitution.md`](.forgia/constitution.md) — immutable project rules
+- [`docs/functional-architecture.md`](docs/functional-architecture.md) — functional architecture and diagrams
+- [`docs/getting-started.md`](docs/getting-started.md) — installation and first-use guide

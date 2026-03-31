@@ -17,11 +17,11 @@ tags: ["integration", "e2e", "verification"]
 
 ## Scope
 
-Verificare che tutti i componenti prodotti da SDD-001, SDD-002, SDD-003 funzionino correttamente insieme come sistema integrato. Questo SDD non produce nuovo codice applicativo — produce un **smoke test script** e completa le verifiche di integrazione che confermano il sistema end-to-end.
+Verify that all components produced by SDD-001, SDD-002, and SDD-003 work correctly together as an integrated system. This SDD produces no new application code — it produces a **smoke test script** and completes integration checks that confirm the system end-to-end.
 
-**Dipendenza forte**: SDD-001, SDD-002, SDD-003 devono essere completati prima.
+**Hard dependency**: SDD-001, SDD-002, and SDD-003 must be completed first.
 
-### Flusso E2E da verificare
+### E2E flow to verify
 
 ```
 Developer pushes tag v*.*.* to GitHub
@@ -39,49 +39,49 @@ Developer pushes tag v*.*.* to GitHub
       → /forgia/docs/cli/ → CLI Reference index ✓
       → /forgia/docs/constitution/ → Constitution ✓
       → Sidebar navigation renders all 5 sections ✓
-      → Mobile layout: sidebar collassa correttamente ✓
+      → Mobile layout: sidebar collapses correctly ✓
 ```
 
-### Output di questo SDD
+### Output of this SDD
 
-1. **Script di smoke test locale** (`docs-site/scripts/smoke-test.sh`) che:
-   - Esegue `pnpm run generate`
-   - Verifica che i file HTML critici esistano in `.output/public/`
-   - Verifica che nessun file HTML contenga link interni rotti (pattern `/forgia/docs/` non trovato)
-   - Exit code 0 se tutto OK, 1 con lista di errori altrimenti
+1. **Local smoke test script** (`docs-site/scripts/smoke-test.sh`) that:
+   - Runs `pnpm run generate`
+   - Verifies that critical HTML files exist in `.output/public/`
+   - Verifies that no HTML file contains broken internal links (pattern `/forgia/docs/` not found)
+   - Exit code 0 if everything is OK, exit code 1 with a list of errors otherwise
 
-2. **Aggiornamento `package.json`** con script `"smoke": "bash scripts/smoke-test.sh"`
+2. **Update `package.json`** with script `"smoke": "bash scripts/smoke-test.sh"`
 
-3. **Step di smoke test nel workflow** (modifica minima a `docs.yml` — aggiungere uno step tra `generate` e `upload artifact` che esegue `pnpm run smoke`)
+3. **Smoke test step in the workflow** (minimal change to `docs.yml` — add a step between `generate` and `upload artifact` that runs `pnpm run smoke`)
 
-4. **Verifica finale manuale** documentata nel Work Log: push di tag `v0.1.0` e conferma che il sito sia live su GitHub Pages.
+4. **Final manual verification** documented in the Work Log: push tag `v0.1.0` and confirm the site is live on GitHub Pages.
 
-## Interfaces / Interfacce
+## Interfaces
 
-| Interface / Interfaccia | Type / Tipo | Description / Descrizione |
-|-------------------------|-------------|---------------------------|
-| `docs-site/scripts/smoke-test.sh` | Bash script | Input: `.output/public/`; Output: exit 0 (OK) o exit 1 + lista errori |
-| `package.json` `smoke` script | npm script | Chiama `smoke-test.sh`; usato localmente e in CI |
-| `docs.yml` step `Smoke test` | GitHub Actions step | Aggiunto dopo `generate`, prima di `upload-pages-artifact` |
-| Path critici da verificare | Filesystem | `/forgia/`, `/forgia/docs/`, `/forgia/docs/getting-started/`, `/forgia/docs/fd/`, `/forgia/docs/sdd/`, `/forgia/docs/cli/`, `/forgia/docs/constitution/` |
+| Interface | Type | Description |
+|-----------|------|-------------|
+| `docs-site/scripts/smoke-test.sh` | Bash script | Input: `.output/public/`; Output: exit 0 (OK) or exit 1 + error list |
+| `package.json` `smoke` script | npm script | Calls `smoke-test.sh`; used locally and in CI |
+| `docs.yml` step `Smoke test` | GitHub Actions step | Added after `generate`, before `upload-pages-artifact` |
+| Critical paths to verify | Filesystem | `/forgia/`, `/forgia/docs/`, `/forgia/docs/getting-started/`, `/forgia/docs/fd/`, `/forgia/docs/sdd/`, `/forgia/docs/cli/`, `/forgia/docs/constitution/` |
 
-## Constraints / Vincoli
+## Constraints
 
-- Language / Linguaggio: Bash per lo script (`set -euo pipefail`)
-- Lo script deve essere idempotente e non avere side effects oltre alla lettura di `.output/public/`
-- Nessuna dipendenza esterna nello script (solo `grep`, `find`, `test` — tool Unix standard)
-- Lo step nel workflow deve usare `working-directory: docs-site` e il medesimo environment del build job
-- Non modificare la logica di deploy in SDD-003 — aggiungere solo uno step di verifica prima dell'upload
-- Rispetta `deny.toml`: nessun `cat *.pem`, nessun accesso a credenziali
-- Lo script deve fallire esplicitamente con messaggio chiaro se `.output/public/` non esiste (gen non è stato eseguito)
+- Language: Bash for the script (`set -euo pipefail`)
+- The script must be idempotent with no side effects beyond reading `.output/public/`
+- No external dependencies in the script (only `grep`, `find`, `test` — standard Unix tools)
+- The workflow step must use `working-directory: docs-site` and the same environment as the build job
+- Do not modify the deploy logic in SDD-003 — only add a verification step before the upload
+- Respects `deny.toml`: no `cat *.pem`, no access to credentials
+- The script must fail explicitly with a clear message if `.output/public/` does not exist (generate was not run)
 
 ## Best Practices
 
-- Error handling: `set -euo pipefail` nello script Bash; ogni check fallito stampa il path mancante prima di exit 1
-- Naming: `smoke-test.sh` (kebab-case), variabili locali con `local`
-- Style: script breve (< 50 righe), commenti dove non ovvio
+- Error handling: `set -euo pipefail` in the Bash script; every failed check prints the missing path before exit 1
+- Naming: `smoke-test.sh` (kebab-case), local variables with `local`
+- Style: short script (< 50 lines), comments where not obvious
 
-### Checklist pagine da verificare nello script
+### Pages checklist to verify in the script
 
 ```bash
 PAGES=(
@@ -99,56 +99,56 @@ PAGES=(
 
 ## Test Requirements
 
-| Type / Tipo | What / Cosa | Coverage |
-|-------------|-------------|----------|
-| E2E locale | `pnpm run smoke` dopo `pnpm run generate` — exit 0 | Tutti i path critici |
-| E2E CI | Step `Smoke test` in `docs.yml` — workflow verde su push tag `v*.*.*` | Pipeline completa |
-| Negative | Rimuovere un file content e verificare che smoke-test rilevi il path mancante | Smoke test reliability |
-| Manual | Push tag `v0.1.0` — sito live e navigabile su GitHub Pages | Deploy end-to-end |
+| Type | What | Coverage |
+|------|------|----------|
+| E2E local | `pnpm run smoke` after `pnpm run generate` — exit 0 | All critical paths |
+| E2E CI | `Smoke test` step in `docs.yml` — workflow green on push tag `v*.*.*` | Full pipeline |
+| Negative | Remove a content file and verify smoke-test detects the missing path | Smoke test reliability |
+| Manual | Push tag `v0.1.0` — site live and navigable on GitHub Pages | Deploy end-to-end |
 
-## Acceptance Criteria / Criteri di Accettazione
+## Acceptance Criteria
 
-- [ ] `docs-site/scripts/smoke-test.sh` esiste, è eseguibile (`chmod +x`), e passa con `set -euo pipefail`
-- [ ] `pnpm run smoke` eseguito localmente dopo `pnpm run generate` — exit 0
-- [ ] `docs.yml` include step `Smoke test` tra `generate` e `upload-pages-artifact`
-- [ ] Il workflow completo (build → smoke → deploy) è verde su push tag `v*.*.*` in CI
-- [ ] Il sito è accessibile su `forgia-labs.github.io/forgia/` dopo il primo deploy
-- [ ] Navigazione sidebar mostra tutte e 5 le sezioni nel sito live
-- [ ] Viewport mobile 375px: sidebar collassa correttamente (verificato su sito live o `pnpm dev`)
-- [ ] `baseURL: /forgia/` funziona — nessun asset 404 nei DevTools del browser
+- [ ] `docs-site/scripts/smoke-test.sh` exists, is executable (`chmod +x`), and passes with `set -euo pipefail`
+- [ ] `pnpm run smoke` run locally after `pnpm run generate` — exit 0
+- [ ] `docs.yml` includes a `Smoke test` step between `generate` and `upload-pages-artifact`
+- [ ] Full workflow (build → smoke → deploy) is green on push tag `v*.*.*` in CI
+- [ ] Site is accessible at `forgia-labs.github.io/forgia/` after first deploy
+- [ ] Sidebar navigation shows all 5 sections on the live site
+- [ ] Mobile viewport 375px: sidebar collapses correctly (verified on live site or `pnpm dev`)
+- [ ] `baseURL: /forgia/` works correctly — no asset 404s in browser DevTools
 - [ ] Commit: `test(FD-007): add smoke test and E2E verification`
 
-## Context / Contesto
+## Context
 
-- [ ] `.forgia/sdd/FD-007/SDD-001-nuxt-content-setup.md` — output: struttura `content/` e path `.output/public/`
-- [ ] `.forgia/sdd/FD-007/SDD-002-initial-content.md` — output: 17 file `.md` da verificare
-- [ ] `.forgia/sdd/FD-007/SDD-003-github-actions-workflow.md` — workflow da modificare aggiungendo lo step smoke
-- [ ] `docs-site/.output/public/` — directory prodotta da `nuxt generate` (esiste dopo SDD-001 completato)
-- [ ] `.forgia/dev-guide/lang/shell.md` — convenzioni Bash per lo script
+- [ ] `.forgia/sdd/FD-007/SDD-001-nuxt-content-setup.md` — output: `content/` structure and `.output/public/` path
+- [ ] `.forgia/sdd/FD-007/SDD-002-initial-content.md` — output: 17 `.md` files to verify
+- [ ] `.forgia/sdd/FD-007/SDD-003-github-actions-workflow.md` — workflow to modify by adding smoke step
+- [ ] `docs-site/.output/public/` — directory produced by `nuxt generate` (exists after SDD-001 is complete)
+- [ ] `.forgia/dev-guide/lang/shell.md` — Bash conventions for the script
 
 ## Constitution Check
 
-- [ ] Rispetta code standards: Bash con `set -euo pipefail`, variabili locali
-- [ ] Rispetta commit conventions: `test(FD-007): add smoke test and E2E verification`
-- [ ] No hardcoded secrets: lo script non accede a credenziali
-- [ ] Tests definiti: lo script stesso È il test — verifica il sistema integrato end-to-end
+- [ ] Respects code standards: Bash with `set -euo pipefail`, local variables
+- [ ] Respects commit conventions: `test(FD-007): add smoke test and E2E verification`
+- [ ] No hardcoded secrets: script does not access credentials
+- [ ] Tests defined: the script itself IS the test — verifies the integrated system end-to-end
 
 ---
 
-## Work Log / Diario di Lavoro
+## Work Log
 
-> Questa sezione è **obbligatoria**. Deve essere compilata dall'agent o dallo sviluppatore durante e dopo l'esecuzione.
+> This section is **mandatory**. Must be filled by the agent or developer during and after execution.
 
-### Agent / Agente
+### Agent
 
 - **Executor**: <!-- openhands | claude-code | manual | name -->
 - **Started**: <!-- timestamp -->
 - **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Duration**: <!-- total time -->
 
-### Decisions / Decisioni
+### Decisions
 
-1. <!-- decisione 1: cosa e perché -->
+1. <!-- decision 1: what and why -->
 
 ### Output
 
@@ -156,11 +156,11 @@ PAGES=(
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `docs-site/scripts/smoke-test.sh`
-  - `docs-site/package.json` (aggiunto script `smoke`)
-  - `.github/workflows/docs.yml` (aggiunto step smoke test)
+  - `docs-site/package.json` (added `smoke` script)
+  - `.github/workflows/docs.yml` (added smoke test step)
 
-### Retrospective / Retrospettiva
+### Retrospective
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked**:
+- **What didn't**:
+- **Suggestions for future FDs**:
