@@ -6,6 +6,16 @@ Given FD identifier: $ARGUMENTS
 
 1. Read the specified FD file from `.forgia/fd/`
 2. Verify the FD has `reviewed: true` and `status: approved`. If not, refuse and suggest `/fd-review` first
+
+### Step 2.5: Check MCP Availability
+
+1. Attempt to call `forgia_sdd_list` (or `tools/list`) with a 3-second timeout
+2. If successful: note "MCP vault tools available — using forgia_sdd_create for SDD creation" and set `MCP_AVAILABLE=true`
+3. If failed/timeout: note "MCP vault tools not available — using direct file creation" and set `MCP_AVAILABLE=false`
+4. Cache this result — do not re-check MCP on subsequent steps
+
+> MCP communication is local-only (stdio, same user) — no network exposure.
+
 3. Read the SDD template from `.forgia/sdd/_templates/sdd-template.md`
 4. Read the constitution from `.forgia/constitution.md`
 5. Read the dev-guide from `.forgia/dev-guide/` (general files)
@@ -18,9 +28,9 @@ Given FD identifier: $ARGUMENTS
    - Parse each recommendation line (format: `N. **SDD-NNN**: <mitigation description>`)
    - Store the mapping of SDD numbers to their security mitigations for use in step 10
    - If the file does not exist, skip silently — no error, no warning. Proceed with SDD generation normally.
-10. For each component listed in "SDD Previsti" in the FD, create an SDD:
-   - Create directory `.forgia/sdd/FD-NNN/`
-   - Create `SDD-001-kebab-name.md`, `SDD-002-kebab-name.md`, etc.
+10. For each component listed in "SDD Previsti" in the FD, create an SDD.
+
+   **Prepare the SDD content** for each component (same regardless of MCP availability):
    - Populate each SDD with:
      - **Scope**: derived from the FD's component description
      - **Interfaces**: from the FD's interface definitions
@@ -50,6 +60,24 @@ Given FD identifier: $ARGUMENTS
    Pattern observed: code compiles, unit tests pass, but nothing works end-to-end because
    modules are never wired, functions are never called from the startup path, and integration
    is left as an implicit assumption that nobody verifies.
+
+   ### Write each SDD file
+
+   **If MCP_AVAILABLE**: for each SDD, call `forgia_sdd_create` with these parameters:
+   - `fd`: the FD identifier (e.g., `FD-006` or `FD-a3f2`)
+   - `title`: the SDD title
+   - `scope`: the scope description
+   - `constraints`: `{"language": "...", "framework": "..."}` as applicable
+   - `acceptance_criteria`: array of acceptance criteria strings
+   - `tags`: from FD tags or `[]`
+
+   The tool returns `{"id": "SDD-NNN", "path": ".forgia/sdd/FD-XXX/SDD-NNN-kebab.md"}`. The tool auto-generates sequential SDD IDs within the FD directory. Use the returned paths when reporting to the user.
+
+   **Error handling**: if `forgia_sdd_create` fails for any SDD, fall back to the direct Write path for that SDD — do not fail the entire command.
+
+   **If MCP_AVAILABLE=false** (or MCP fallback after error):
+   - Create directory `.forgia/sdd/FD-NNN/`
+   - Create `SDD-001-kebab-name.md`, `SDD-002-kebab-name.md`, etc. using the Write tool directly
 
 11. Update the FD status to "in-progress"
 12. **Beads integration** (if `bd` is available and `.beads/` exists):

@@ -253,6 +253,19 @@ func writeFDWithAuthor(t *testing.T, dir, id, title, status, author string) {
 	}
 }
 
+// setupMinimalVault creates a bare .forgia/ directory with required
+// subdirectories so that vault.Open(".") succeeds and vault CRUD
+// operations work. Used by MCP E2E tests that spawn forgia mcp serve.
+func setupMinimalVault(t *testing.T, dir string) {
+	t.Helper()
+	forgiaDir := filepath.Join(dir, ".forgia")
+	for _, sub := range []string{"", "fd", "sdd"} {
+		if err := os.MkdirAll(filepath.Join(forgiaDir, sub), 0o755); err != nil {
+			t.Fatalf("create .forgia/%s: %v", sub, err)
+		}
+	}
+}
+
 // --- E2E Tests ---
 
 func TestE2E_Init(t *testing.T) {
@@ -457,13 +470,37 @@ func TestE2E_Skills(t *testing.T) {
 	output, code := runForgia(t, dir, "skills")
 	assertExitCode(t, code, 0)
 	assertContains(t, output, "Available Skills")
+	assertContains(t, output, "MODE")
 
-	// Verify known skills are listed.
-	for _, skill := range []string{"fd-new", "fd-review", "fd-sdd", "sdd-assign", "arch-review", "arch-init"} {
+	// Verify known embedded skills are listed.
+	for _, skill := range []string{"fd-new", "fd-review", "fd-sdd", "sdd-assign", "arch-review"} {
 		assertContains(t, output, skill)
 	}
 
+	assertContains(t, output, "Slash Command")
 	assertContains(t, output, "Total:")
+}
+
+func TestE2E_Skills_WithVault(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	initVault(t, dir)
+
+	output, code := runForgia(t, dir, "skills")
+	assertExitCode(t, code, 0)
+
+	// With vault + config (which includes knowledge.provider = "codebase-memory-mcp"),
+	// composite skills should also be listed.
+	assertContains(t, output, "MCP Tool")
+	for _, skill := range []string{
+		"blast_radius", "arch_init", "trace_calls", "search_code",
+		"security_scan", "arch_coherence", "context_map",
+	} {
+		assertContains(t, output, skill)
+	}
+
+	// Should have 26 total (19 embedded + 7 composite).
+	assertContains(t, output, "Total: 26 skills")
 }
 
 func TestE2E_Version(t *testing.T) {
@@ -925,4 +962,55 @@ func TestE2E_Init_KnowledgeConfig(t *testing.T) {
 	assertFileContains(t, cfg, `provider = "codebase-memory-mcp"`)
 	assertFileContains(t, cfg, "auto_index = true")
 	assertFileContains(t, cfg, "auto_sync = true")
+}
+
+// --- MCP: vault tools exposed (SDD-011) ---
+
+func TestE2E_MCPServe_VaultToolsExposed(t *testing.T) {
+	t.Parallel()
+
+	enc, dec, cleanup := mcpServer(t)
+	defer cleanup()
+
+	resp := mcpRequest(t, enc, dec, 1, "tools/list", nil)
+	if resp["error"] != nil {
+		t.Fatalf("tools/list error: %v", resp["error"])
+	}
+
+	result, ok := resp["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing result: %v", resp)
+	}
+
+	tools, ok := result["tools"].([]any)
+	if !ok {
+		t.Fatal("missing tools array")
+	}
+
+	toolNames := make(map[string]bool)
+	for _, item := range tools {
+		tool, _ := item.(map[string]any)
+		name, _ := tool["name"].(string)
+		toolNames[name] = true
+	}
+
+	// Verify all 11 vault tools are present.
+	vaultTools := []string{
+		"forgia_vault_fd_get", "forgia_vault_fd_list",
+		"forgia_vault_fd_create", "forgia_vault_fd_update",
+		"forgia_vault_sdd_get", "forgia_vault_sdd_list",
+		"forgia_vault_sdd_create", "forgia_vault_sdd_update",
+		"forgia_vault_status", "forgia_vault_validate",
+		"forgia_vault_threat_model_get",
+	}
+	for _, name := range vaultTools {
+		if !toolNames[name] {
+			t.Errorf("vault tool %s not found in tools/list", name)
+		}
+	}
+
+	// Total should be at least 18 (7 composite + 11 vault).
+	if len(tools) < 18 {
+		t.Errorf("expected at least 18 tools, got %d", len(tools))
+	}
 }

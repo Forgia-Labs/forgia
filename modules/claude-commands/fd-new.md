@@ -29,6 +29,15 @@ Create a new Feature Design (FD) in the Forgia vault.
      - `glab` CLI is installed (`command -v glab`)
        If neither is available, tell the user: "GitLab source richiede GITLAB_TOKEN o glab CLI. Installa glab: https://gitlab.com/gitlab-org/cli oppure esporta GITLAB_TOKEN." — then stop execution and create no FD file.
 
+### Step 2.5: Check MCP Availability
+
+1. Attempt to call `forgia_fd_list` (or `tools/list`) with a 3-second timeout
+2. If successful: note "MCP vault tools available — using forgia_fd_create for hash-based ID" and set `MCP_AVAILABLE=true`
+3. If failed/timeout: note "MCP vault tools not available — using direct file creation with sequential ID" and set `MCP_AVAILABLE=false`
+4. Cache this result — do not re-check MCP on subsequent steps
+
+> MCP communication is local-only (stdio, same user) — no network exposure.
+
 3. **Determine the source** — GitHub issue, GitLab issue, or free-text:
 
    ### Path A: GitHub issue source
@@ -113,12 +122,16 @@ Create a new Feature Design (FD) in the Forgia vault.
 
 5. **Read the FD template** from `.forgia/fd/_templates/fd-template.md` (fallback: `modules/vault-template/fd/_templates/fd-template.md`) to know the exact section structure. The generated FD MUST have ALL sections from this template.
 
-6. **Determine the next FD ID**:
+6. **Determine the FD ID**:
+
+   **If MCP_AVAILABLE**: skip manual ID generation — the `forgia_fd_create` tool will generate a hash-based ID automatically via `vault.NewFDID(title, author)` (e.g., `FD-a3f2`).
+
+   **If MCP_AVAILABLE=false** (fallback):
    - List existing FD files in `.forgia/fd/` (excluding `_templates/`)
    - Find the highest FD number and increment by 1
    - Format: `FD-NNN` (zero-padded to 3 digits)
 
-7. **Create the FD** at `.forgia/fd/FD-NNN-kebab-title.md`:
+7. **Build the FD content** — prepare frontmatter values and body sections as described below, regardless of MCP availability. The difference is only in how the file gets created (step 7b).
 
    ### Frontmatter
    - `id`: the new FD ID
@@ -179,11 +192,29 @@ Create a new Feature Design (FD) in the Forgia vault.
    - If from issue: link to the upstream issue (`Upstream: owner/repo#number`) and include relevant maintainer comments (summarized, not raw dumps)
    - List all auto-discovered context files as links
 
+   ### 7b. Write the FD file
+
+   **If MCP_AVAILABLE**: call `forgia_fd_create` with these parameters:
+   - `title`: the cleaned title
+   - `author`: the detected author
+   - `status`: "planned"
+   - `priority`: determined priority value
+   - `tags`: from issue labels or `[]`
+   - `upstream_issue`: the upstream reference (if from issue source)
+   - `body`: the complete markdown body (all sections from Problem through Notes, assembled as a single string)
+
+   The tool returns `{"id": "FD-xxxx", "path": ".forgia/fd/FD-xxxx-kebab-title.md"}`. Use the returned `id` and `path` for subsequent steps.
+
+   **Error handling**: if `forgia_fd_create` fails, fall back to the direct Write path below — do not fail the command.
+
+   **If MCP_AVAILABLE=false** (or MCP fallback after error): write the file directly using the Write tool at `.forgia/fd/FD-NNN-kebab-title.md` using the sequential ID determined in step 6.
+
 8. **Verify the FD was NOT overwritten**: confirm no existing file was modified — only a new file was created.
 
 9. **Show the user** the created file path and suggest next steps:
-   - "FD creato: `.forgia/fd/FD-NNN-kebab-title.md`"
-   - "Prossimo passo: `/fd-review FD-NNN`"
+   - "FD creato: `.forgia/fd/<FD-ID>-kebab-title.md`"
+   - "Prossimo passo: `/fd-review <FD-ID>`"
+   - If MCP was used, note: "ID generato con hash: `<FD-ID>`"
 
 ## Important
 

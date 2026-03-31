@@ -15,7 +15,18 @@ import (
 	"context"
 
 	"github.com/Deepzima/forgia/internal/mcp"
+	"github.com/Deepzima/forgia/internal/vault"
 )
+
+// VaultReader provides narrow, read-only access to vault data for composite skills.
+// Intentionally limited to 4 methods (Interface Segregation) — if widened, re-assess
+// what data composite skills can access (see FD-006 threat model).
+type VaultReader interface {
+	Constitution(ctx context.Context) (string, error)
+	GuardrailsRaw(ctx context.Context) ([]byte, error)
+	GetArchitecture(ctx context.Context) (*vault.Architecture, error)
+	ListContexts(ctx context.Context) ([]*vault.BoundedContext, error)
+}
 
 // Category groups skills by domain.
 type Category string
@@ -73,6 +84,14 @@ type CompositeSkill struct {
 
 	// Provider registry for calling the underlying tool.
 	registry *mcp.ProviderRegistry
+
+	// Vault provides read-only access to constitution, guardrails, architecture, contexts.
+	vault VaultReader
+
+	// graceful enables graceful degradation for higher-level skills.
+	// When true, provider call errors are annotated in the result instead of
+	// being propagated, allowing PostProcess to produce partial results.
+	graceful bool
 }
 
 // Name returns the skill name.
@@ -115,7 +134,11 @@ func (s *CompositeSkill) Execute(ctx context.Context, params map[string]any) (an
 	// Call underlying provider.
 	result, err := s.registry.Call(ctx, mcp.ToolName(s.ProviderName, s.ProviderTool), params)
 	if err != nil {
-		return nil, err
+		if s.graceful {
+			result = map[string]any{"_error": err.Error()}
+		} else {
+			return nil, err
+		}
 	}
 
 	// Post-process (e.g., enrich with bounded context info, check guardrails).
@@ -180,6 +203,21 @@ func (r *Registry) MCPTools() []Skill {
 		}
 	}
 	return result
+}
+
+// GetAndExecute looks up a skill by name and executes it.
+// Returns (result, true, nil) if found, (nil, false, nil) if not found.
+// Satisfies mcp.SkillDispatcher interface.
+func (r *Registry) GetAndExecute(ctx context.Context, name string, params map[string]any) (any, bool, error) {
+	s, ok := r.skills[name]
+	if !ok {
+		return nil, false, nil
+	}
+	result, err := s.Execute(ctx, params)
+	if err != nil {
+		return nil, true, err
+	}
+	return result, true, nil
 }
 
 // MCPToolDefs returns MCP tool definitions for all MCP-capable skills.

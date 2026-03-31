@@ -77,3 +77,14 @@ The Work Log in each SDD is reviewed during `/fd-verify`:
 - Retrospective: learnings for future FDs
 
 The retrospective is the most valuable artifact — it feeds back into better FDs.
+
+## MCP Server — Enhanced Analysis
+
+When `forgia mcp serve` is running, slash commands (`/fd-review`, `/fd-arch-review`, etc.) gain access to the codebase knowledge graph via composite skills. This enables:
+
+- **Blast radius analysis**: automatic risk labeling (High/Medium/Low) based on dependency count
+- **Architecture coherence**: drift detection between actual call paths and documented architecture
+- **Security scanning**: cross-references code patterns against guardrails deny.toml
+- **Context mapping**: maps symbols and changes to bounded contexts
+
+The MCP server exposes 7 composite skills alongside the 19 embedded slash commands. Run `forgia skills` to see the full list with mode indicators (Slash Command vs MCP Tool).

@@ -17,7 +17,16 @@ Given arguments: $ARGUMENTS
       "Architettura gia' presente in `.forgia/architecture/`. Usa `/arch-update` per modificarla."
       — then stop. Do NOT overwrite existing architecture files.
 
-3. **Read project context** — scan for these files and read any that exist:
+3. **Check MCP Availability** (Step 0.5):
+
+   a. Attempt to call `forgia_arch_init` (or `tools/list`) with a 3-second timeout.
+   b. If successful: note "Knowledge graph available — using MCP composite skills for enhanced architecture extraction" and set `MCP_AVAILABLE=true`.
+   c. If failed/timeout: note "Knowledge graph not available — using direct directory scanning" and set `MCP_AVAILABLE=false`.
+   d. Cache this result — do not re-check MCP on subsequent steps.
+
+   > MCP communication is local-only (stdio, same user) — no network exposure.
+
+4. **Read project context** — scan for these files and read any that exist:
    - `.forgia/constitution.md`
    - `README.md`
    - `ARCHITECTURE.md`, `docs/ARCHITECTURE.md`
@@ -30,7 +39,7 @@ Given arguments: $ARGUMENTS
    - `.forgia/config.toml`
    - Actually **read the content** of discovered files — do not just list them.
 
-4. **Read vault template schemas** — these define the exact YAML structure for output:
+5. **Read vault template schemas** — these define the exact YAML structure for output:
    - `modules/vault-template/architecture/system-context.yaml`
    - `modules/vault-template/architecture/containers.yaml`
    - `modules/vault-template/architecture/technology-decisions.yaml`
@@ -39,7 +48,7 @@ Given arguments: $ARGUMENTS
    - `modules/vault-template/architecture/glossary.yaml`
    - `modules/vault-template/contexts/_template.yaml`
 
-5. **Optional enrichment** — only if `--enrich` flag was provided:
+6. **Optional enrichment** — only if `--enrich` flag was provided:
 
    a. Check if codebase-memory-mcp is available by attempting to call `list_projects`.
    b. If available, call these MCP tools to enrich the architecture:
@@ -51,7 +60,13 @@ Given arguments: $ARGUMENTS
       — then continue without enrichment. Do NOT fail.
    d. Merge enrichment data with the brief: enrichment fills gaps, brief takes precedence for explicit choices.
 
-6. **Analyze the brief** and determine:
+7. **Analyze the brief** and determine:
+
+   **If MCP_AVAILABLE**: use `forgia_arch_init` to extract architecture knowledge from the codebase knowledge graph. The tool maps the output to `.forgia/architecture/` YAML structure (system-context, containers, technology-decisions). Merge MCP results with the brief — brief takes precedence for explicit choices, MCP fills gaps.
+
+   **If MCP_AVAILABLE=false** (or fallback): analyze the brief and project context manually.
+
+   Determine:
    - **System name**: inferred from README, project directory, or brief
    - **Actors**: who/what interacts with the system (users, external systems, APIs)
    - **Containers**: services, databases, frontends, message queues mentioned in the brief
@@ -61,7 +76,7 @@ Given arguments: $ARGUMENTS
 
    If the brief is empty or not provided, generate placeholder structures with TODO markers for every field.
 
-7. **Generate architecture files** — create these files in `.forgia/architecture/`:
+8. **Generate architecture files** — create these files in `.forgia/architecture/`:
 
    ### `.forgia/architecture/system-context.yaml`
    ```yaml
@@ -160,7 +175,7 @@ Given arguments: $ARGUMENTS
    - Extract domain-specific terms from the brief
    - If no terms detected, create one placeholder with TODO comments
 
-8. **Generate bounded context files** — create one file per detected context in `.forgia/contexts/`:
+9. **Generate bounded context files** — create one file per detected context in `.forgia/contexts/`:
 
    ### `.forgia/contexts/<context-name>.yaml`
    ```yaml
@@ -194,14 +209,14 @@ Given arguments: $ARGUMENTS
    - Each context must have `reviewed: false`
    - If no bounded contexts can be detected from the brief, create one placeholder context named `core.yaml`
 
-9. **YAML formatting rules** — apply to ALL generated files:
+10. **YAML formatting rules** — apply to ALL generated files:
    - 2-space indentation (no tabs)
    - Quote strings that contain special characters (`:`, `#`, `{`, `}`, `[`, `]`, `,`, `&`, `*`, `?`, `|`, `-`, `<`, `>`, `=`, `!`, `%`, `@`, `\`)
    - No trailing whitespace
    - Empty arrays: `[]` on the same line
    - Comment header at the top of each file
 
-10. **Report results** to the user:
+11. **Report results** to the user:
     - List all created files
     - Show counts: "Creati N container e M bounded context."
     - Suggest next step: "Prossimo passo: rivedi i file generati e poi esegui `/arch-review` per la validazione."

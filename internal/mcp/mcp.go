@@ -5,6 +5,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 )
@@ -77,6 +78,19 @@ func (r *ProviderRegistry) AllTools() []ToolDefinition {
 	return tools
 }
 
+// StopAll stops all registered providers. Called during graceful shutdown.
+// Logs errors but does not fail — best-effort cleanup.
+func (r *ProviderRegistry) StopAll() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for name, p := range r.providers {
+		if err := p.Stop(); err != nil {
+			slog.Error("provider stop error", "provider", name, "error", err)
+		}
+	}
+}
+
 // Call routes a namespaced tool call to the right provider.
 // Parses "forgia_code_search_graph" → provider="code", tool="search_graph".
 func (r *ProviderRegistry) Call(ctx context.Context, tool string, params map[string]any) (any, error) {
@@ -117,3 +131,26 @@ func parseNamespacedTool(tool string) (namespace, name string, err error) {
 
 	return rest[:idx], rest[idx+1:], nil
 }
+
+// MetadataProvider is a lightweight ToolProvider that exists only for
+// metadata purposes (listing composite skills without starting real processes).
+// Used by `forgia skills` to register composite skills without launching providers.
+type MetadataProvider struct {
+	name      string
+	namespace string
+}
+
+// Compile-time interface check.
+var _ ToolProvider = (*MetadataProvider)(nil)
+
+// NewMetadataProvider creates a provider that only has a name and namespace.
+func NewMetadataProvider(name, namespace string) *MetadataProvider {
+	return &MetadataProvider{name: name, namespace: namespace}
+}
+
+func (p *MetadataProvider) Name() string                                                   { return p.name }
+func (p *MetadataProvider) Tools() []ToolDefinition                                        { return nil }
+func (p *MetadataProvider) Call(_ context.Context, _ string, _ map[string]any) (any, error) { return nil, fmt.Errorf("metadata-only provider") }
+func (p *MetadataProvider) Start(_ context.Context) error                                  { return nil }
+func (p *MetadataProvider) Stop() error                                                    { return nil }
+func (p *MetadataProvider) Healthy() bool                                                  { return true }

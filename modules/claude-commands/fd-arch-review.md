@@ -13,6 +13,15 @@ Given FD identifier: $ARGUMENTS
 3. If no file found, refuse with: "FD non trovato: $ARGUMENTS. Verifica l'identificatore."
 4. Extract the FD title from frontmatter
 
+### Step 0.5: Check MCP Availability
+
+1. Attempt to call `forgia_search_code` (or `tools/list`) with a 3-second timeout
+2. If successful: note "Knowledge graph available — using MCP composite skills for enhanced analysis" and set `MCP_AVAILABLE=true`
+3. If failed/timeout: note "Knowledge graph not available — using direct codebase scanning (Glob/Grep/Read)" and set `MCP_AVAILABLE=false`
+4. Cache this result — do not re-check MCP on subsequent steps
+
+> MCP communication is local-only (stdio, same user) — no network exposure.
+
 ### Step 1: Load Context
 
 Read all of the following — do not skip any:
@@ -30,7 +39,9 @@ Scan the project's actual codebase to understand the current architecture. This 
 
 **Before reading any file**: check its path against the `[read]` deny patterns from `.forgia/guardrails/deny.toml`. If a file matches a deny pattern, skip it and note: "skipped — blocked by guardrails (matches: `<pattern>`)". Never attempt to read denied files.
 
-Perform these scans:
+**If MCP_AVAILABLE**: use `forgia_trace_calls` to map call paths between packages and `forgia_search_code` to find pattern implementations, dependency relationships, and import structures. Supplement with Glob/Read for directory structure. Skip to Step 3 with the enriched results.
+
+**If MCP_AVAILABLE=false** (or fallback): perform these scans manually:
 
 1. **Directory structure**: Use Glob to map the top-level and key subdirectories. Identify packages, modules, crates, or services depending on the language/framework.
 
@@ -44,6 +55,10 @@ Perform these scans:
 3. **Import/dependency analysis**: For each major package/module, identify what it imports/depends on. Build a dependency map: `package → [dependencies]`.
 
 ### Step 3: Pattern Analysis
+
+**If MCP_AVAILABLE**: use `forgia_search_code` to search for each pattern name (e.g., "Repository", "Factory", "Strategy") across the codebase. Use `forgia_trace_calls` to verify structural patterns (middleware chains, observer registrations) by tracing call paths. Combine MCP results with the pattern table below.
+
+**If MCP_AVAILABLE=false** (or fallback): use Glob/Grep/Read to detect patterns manually.
 
 Using the patterns from `.forgia/dev-guide/principles/design-patterns.md` and language conventions, check the codebase for known patterns:
 

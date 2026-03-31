@@ -49,6 +49,28 @@ auto_index = true
 # Reserved for future use — enable file watching for live re-indexing
 auto_sync = true
 
+[mcp]
+# MCP provider chaining — external MCP servers that Forgia can route tool calls to.
+# Each provider is spawned as a subprocess and communicates via JSON-RPC 2.0 over stdio.
+#
+# WARNING: do not use shell commands (sh -c, bash -c) — use direct binary paths.
+# Commands containing shell metacharacters (; | & $ `) will be rejected.
+
+# [mcp.providers.code]
+# command = "codebase-memory-mcp"
+# namespace = "code"
+# lazy = false
+# restart_on_crash = true
+
+# [mcp.providers.custom]
+# command = "/usr/local/bin/my-mcp-server"
+# args = ["--port", "0"]
+# namespace = "custom"
+# lazy = true
+# restart_on_crash = false
+# health_check = "ping"
+# expose_tools = ["tool_a", "tool_b"]
+
 [watcher]
 # Auto-execute SDDs when they appear in the vault
 enabled = false
