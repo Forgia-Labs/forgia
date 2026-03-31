@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  /* Scala 'forge' (Arancione Fiamma) - Colore Primario */
+  --color-forge-50: #fff7ed;
+  --color-forge-100: #ffedd5;
+  --color-forge-200: #fed7aa;
+  --color-forge-300: #fdba74;
+  --color-forge-400: #fb923c;
+  --color-forge-500: #f97316; /* Il colore della fiamma nel logo */
+  --color-forge-600: #ea580c;
+  --color-forge-700: #c2410c;
+  --color-forge-800: #9a3412;
+  --color-forge-900: #7c2d12;
+  --color-forge-950: #431407;
+
+  /* Scala 'anvil' (Grigio Antracite) - Colore Neutro/IA */
+  --color-anvil-50: #f9fafb;
+  --color-anvil-100: #f3f4f6;
+  --color-anvil-200: #e5e7eb;
+  --color-anvil-300: #d1d5db;
+  --color-anvil-400: #9ca3af;
+  --color-anvil-500: #6b7280;
+  --color-anvil-600: #4b5563;
+  --color-anvil-700: #374151; /* Il colore dell'incudine nel logo */
+  --color-anvil-800: #1f2937;
+  --color-anvil-900: #111827;
+  --color-anvil-950: #030712;
+}
