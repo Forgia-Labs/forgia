@@ -2,7 +2,7 @@
 id: "SDD-001"
 fd: "FD-007"
 title: "Nuxt Content Setup & Docs Layout"
-status: assigned
+status: done
 agent: "claude-code"
 assigned_to: "claude"
 created: "2026-04-01"
@@ -157,33 +157,40 @@ docs-site/
 
 ### Agent
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-01
+- **Completed**: 2026-04-01
+- **Duration**: ~1 session
 
 ### Decisions
 
-1. <!-- decision 1: what and why -->
+1. Moved content tree from `content/` into `content/docs/` so Nuxt Content assigns paths like `/docs/getting-started`, matching the URL pattern used in `[...slug].vue` query (`/docs/${slug}`). Without this, all docs pages would return 404 at build time.
+2. Added `content.config.ts` at project root — required by Nuxt Content v3 to define collections; without it the module logs a warning and falls back to defaults which broke the build.
+3. Added `onlyBuiltDependencies: [better-sqlite3]` in `pnpm-workspace.yaml` — pnpm 10 ignores native build scripts by default; `better-sqlite3` requires a native `.node` binary compiled for the current Node version.
+4. Added a minimal `content/docs/getting-started/index.md` stub so the prerender crawler (which follows links from `content/docs/index.md`) does not 404 during `nuxt generate`.
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: `bbe8a0c`, `43ec24a`
+- **PR**: —
 - **Files created/modified**:
   - `docs-site/nuxt.config.ts`
   - `docs-site/package.json`
+  - `docs-site/pnpm-lock.yaml`
+  - `docs-site/pnpm-workspace.yaml`
+  - `docs-site/content.config.ts`
   - `docs-site/app/layouts/docs.vue`
   - `docs-site/app/pages/docs/[...slug].vue`
-  - `docs-site/content/index.md`
-  - `docs-site/content/getting-started/.gitkeep`
-  - `docs-site/content/fd/.gitkeep`
-  - `docs-site/content/sdd/.gitkeep`
-  - `docs-site/content/cli/.gitkeep`
-  - `docs-site/content/constitution/.gitkeep`
+  - `docs-site/content/docs/index.md`
+  - `docs-site/content/docs/getting-started/index.md`
+  - `docs-site/content/docs/getting-started/.gitkeep`
+  - `docs-site/content/docs/fd/.gitkeep`
+  - `docs-site/content/docs/sdd/.gitkeep`
+  - `docs-site/content/docs/cli/.gitkeep`
+  - `docs-site/content/docs/constitution/.gitkeep`
 
 ### Retrospective
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: Nuxt Content v3 + Nuxt UI v4 integration is clean; `queryCollectionNavigation` + `ContentRenderer` pattern works well for docs sites.
+- **What didn't**: pnpm 10 silently ignores build scripts for native modules — `better-sqlite3` built fine once added to `onlyBuiltDependencies`, but the failure was not obvious from the initial error message. Future FDs using native Node modules with pnpm 10 need this.
+- **Suggestions for future FDs**: When adding `@nuxt/content` to a new project, always create `content.config.ts` first and place content under `content/docs/` immediately to match the URL routing convention.
