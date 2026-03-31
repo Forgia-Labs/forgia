@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/config"
 )
 
 // ---------------------------------------------------------------------------

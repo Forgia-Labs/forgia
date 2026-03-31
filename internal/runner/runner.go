@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/vault"
 )
 
 // Runner executes an SDD and returns structured results.

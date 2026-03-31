@@ -191,7 +191,7 @@ run = "docker compose -f {{config_root}}/modules/openhands/docker-compose.yml lo
 
 [tasks."go:build"]
 description = "Build forgia Go binary"
-run = 'go build -ldflags "-X github.com/Deepzima/forgia/cmd/forgia/cmd.Version=${VERSION:-dev}" -o build/forgia ./cmd/forgia'
+run = 'go build -ldflags "-X github.com/forgia-labs/forgia/cmd/forgia/cmd.Version=${VERSION:-dev}" -o build/forgia ./cmd/forgia'
 
 [tasks."go:test"]
 description = "Run Go tests"
@@ -207,7 +207,7 @@ run = "rm -rf build/"
 
 [tasks."go:build-linux"]
 description = "Cross-compile for Linux"
-run = 'GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/Deepzima/forgia/cmd/forgia/cmd.Version=${VERSION:-dev}" -o build/forgia-linux-amd64 ./cmd/forgia'
+run = 'GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/forgia-labs/forgia/cmd/forgia/cmd.Version=${VERSION:-dev}" -o build/forgia-linux-amd64 ./cmd/forgia'
 
 # --- Claude Code integration ---
 

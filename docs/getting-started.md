@@ -9,12 +9,12 @@
 ## Install Forgia
 
 ```bash
-git clone git@github.com:Deepzima/forgia.git ~/forgia
+git clone git@github.com:forgia-labs/forgia.git ~/forgia
 cd ~/forgia
 
 # Build the Go binary
 mise run go:build
-# Or: go install github.com/Deepzima/forgia/cmd/forgia@latest
+# Or: go install github.com/forgia-labs/forgia/cmd/forgia@latest
 
 # Install Claude Code slash commands
 mise run claude:install

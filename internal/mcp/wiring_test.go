@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/Deepzima/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/config"
 )
 
 func TestValidateCommand_RejectsShellMetachars(t *testing.T) {

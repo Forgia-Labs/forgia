@@ -14,8 +14,8 @@ package skill
 import (
 	"context"
 
-	"github.com/Deepzima/forgia/internal/mcp"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/mcp"
+	"github.com/forgia-labs/forgia/internal/vault"
 )
 
 // VaultReader provides narrow, read-only access to vault data for composite skills.

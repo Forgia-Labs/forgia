@@ -9,12 +9,12 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	forgia "github.com/Deepzima/forgia"
-	"github.com/Deepzima/forgia/internal/config"
-	"github.com/Deepzima/forgia/internal/mcp"
-	"github.com/Deepzima/forgia/internal/runner"
-	"github.com/Deepzima/forgia/internal/skill"
-	"github.com/Deepzima/forgia/internal/vault"
+	forgia "github.com/forgia-labs/forgia"
+	"github.com/forgia-labs/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/mcp"
+	"github.com/forgia-labs/forgia/internal/runner"
+	"github.com/forgia-labs/forgia/internal/skill"
+	"github.com/forgia-labs/forgia/internal/vault"
 	"github.com/spf13/cobra"
 )
 

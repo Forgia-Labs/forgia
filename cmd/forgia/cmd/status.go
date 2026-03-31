@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/beads"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/beads"
+	"github.com/forgia-labs/forgia/internal/vault"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/Deepzima/forgia/internal/board"
+	"github.com/forgia-labs/forgia/internal/board"
 )
 
 // BoardProvider exposes project board operations as MCP tools.

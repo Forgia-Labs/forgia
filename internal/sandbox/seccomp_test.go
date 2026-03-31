@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Deepzima/forgia/internal/guardrails"
+	"github.com/forgia-labs/forgia/internal/guardrails"
 )
 
 func TestGenerateSeccompJSON_ValidOutput(t *testing.T) {

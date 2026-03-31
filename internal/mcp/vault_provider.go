@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/guardrails"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/guardrails"
+	"github.com/forgia-labs/forgia/internal/vault"
 )
 
 // validIDPattern matches FD/SDD identifiers: FD-001, FD-a3f2, SDD-001, etc.

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Deepzima/forgia/internal/guardrails"
-	"github.com/Deepzima/forgia/internal/mcp"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/guardrails"
+	"github.com/forgia-labs/forgia/internal/mcp"
+	"github.com/forgia-labs/forgia/internal/vault"
 	"gopkg.in/yaml.v3"
 )
 

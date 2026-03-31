@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Deepzima/forgia/internal/board"
+	"github.com/forgia-labs/forgia/internal/board"
 )
 
 // mockBoard implements board.ProjectBoard for testing MCP tools.

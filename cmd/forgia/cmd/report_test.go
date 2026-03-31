@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/beads"
-	"github.com/Deepzima/forgia/internal/runner"
+	"github.com/forgia-labs/forgia/internal/beads"
+	"github.com/forgia-labs/forgia/internal/runner"
 )
 
 // --- writeExecReport tests ---

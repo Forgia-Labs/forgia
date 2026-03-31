@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/config"
-	"github.com/Deepzima/forgia/internal/guardrails"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/guardrails"
+	"github.com/forgia-labs/forgia/internal/vault"
 	"github.com/spf13/cobra"
 )
 
