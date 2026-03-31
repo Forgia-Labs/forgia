@@ -63,11 +63,20 @@ type SDDConstraints struct {
 
 // SDDBoundaries defines file ownership for Agent Teams.
 type SDDBoundaries struct {
-	WriteDirs    []string `yaml:"write_dirs,omitempty"`
-	ForbiddenDirs []string `yaml:"forbidden_dirs,omitempty"`
-	MaxFiles     int      `yaml:"max_files_created,omitempty"`
-	MaxFileSize  int      `yaml:"max_file_size_kb,omitempty"`
-	BannedImports []string `yaml:"banned_imports,omitempty"`
+	WriteDirs     []string     `yaml:"write_dirs,omitempty"`
+	ForbiddenDirs []string     `yaml:"forbidden_dirs,omitempty"`
+	MaxFiles      int          `yaml:"max_files_created,omitempty"`
+	MaxFileSize   int          `yaml:"max_file_size_kb,omitempty"`
+	BannedImports []string     `yaml:"banned_imports,omitempty"`
+	Services      []SDDService `yaml:"services,omitempty"`
+}
+
+// SDDService describes a service an SDD needs during execution.
+type SDDService struct {
+	Name  string            `yaml:"name"`
+	Image string            `yaml:"image"`
+	Ports []int             `yaml:"ports,omitempty"`
+	Env   map[string]string `yaml:"env,omitempty"`
 }
 
 // SDDTestReq specifies a test requirement.
