@@ -2,12 +2,12 @@
 id: "SDD-002"
 fd: "FD-007"
 title: "Initial Documentation Content"
-status: planned
-agent: ""
-assigned_to: ""
+status: done
+agent: "claude-code"
+assigned_to: "claude"
 created: "2026-04-01"
-started: ""
-completed: ""
+started: "2026-04-01"
+completed: "2026-04-01"
 tags: ["docs", "content", "markdown"]
 ---
 
@@ -137,40 +137,43 @@ navigation:
 
 ### Agent
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-01
+- **Completed**: 2026-04-01
+- **Duration**: ~1 hour (split across two context windows)
 
 ### Decisions
 
-1. <!-- decision 1: what and why -->
+1. **Content lives under `content/docs/`** — Nuxt Content v3 assigns path `/docs/section/page` matching the catch-all page query. Files were placed at the correct depth from the start.
+2. **All internal links use `/docs/` prefix without `/forgia/`** — the baseURL is a deployment concern handled by Nuxt, not the content author. Using absolute `/docs/` paths keeps content portable.
+3. **~300 words per page** — kept concise and action-oriented; CLI reference pages use tables for scanability.
+4. **`navigation.title` frontmatter** — shorter sidebar labels used where the full page title would overflow the nav column.
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: 72a5b70
+- **PR**: federicoibba/79-documentation-website (in-progress)
 - **Files created/modified**:
-  - `docs-site/content/index.md`
-  - `docs-site/content/getting-started/index.md`
-  - `docs-site/content/getting-started/installation.md`
-  - `docs-site/content/getting-started/first-feature.md`
-  - `docs-site/content/fd/index.md`
-  - `docs-site/content/fd/creating.md`
-  - `docs-site/content/fd/reviewing.md`
-  - `docs-site/content/fd/closing.md`
-  - `docs-site/content/sdd/index.md`
-  - `docs-site/content/sdd/generating.md`
-  - `docs-site/content/sdd/executing.md`
-  - `docs-site/content/cli/index.md`
-  - `docs-site/content/cli/init.md`
-  - `docs-site/content/cli/status.md`
-  - `docs-site/content/cli/doctor.md`
-  - `docs-site/content/cli/exec.md`
-  - `docs-site/content/constitution/index.md`
+  - `docs-site/content/docs/index.md`
+  - `docs-site/content/docs/getting-started/index.md`
+  - `docs-site/content/docs/getting-started/installation.md`
+  - `docs-site/content/docs/getting-started/first-feature.md`
+  - `docs-site/content/docs/fd/index.md`
+  - `docs-site/content/docs/fd/creating.md`
+  - `docs-site/content/docs/fd/reviewing.md`
+  - `docs-site/content/docs/fd/closing.md`
+  - `docs-site/content/docs/sdd/index.md`
+  - `docs-site/content/docs/sdd/generating.md`
+  - `docs-site/content/docs/sdd/executing.md`
+  - `docs-site/content/docs/cli/index.md`
+  - `docs-site/content/docs/cli/init.md`
+  - `docs-site/content/docs/cli/status.md`
+  - `docs-site/content/docs/cli/doctor.md`
+  - `docs-site/content/docs/cli/exec.md`
+  - `docs-site/content/docs/constitution/index.md`
 
 ### Retrospective
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: The `content/docs/` nesting decision from SDD-001 made content placement unambiguous. Frontmatter with `navigation.title` gave clean sidebar labels without page title changes.
+- **What didn't**: The SDD file list still had the old `content/` paths (without `docs/`). Future SDDs should update the file list to match the actual structure after SDD-001 architecture decisions.
+- **Suggestions for future FDs**: When SDD-001 changes a structural convention (like content path nesting), update all downstream SDD file lists before assigning them. A pre-assign check in `/sdd-assign` could catch stale paths.
