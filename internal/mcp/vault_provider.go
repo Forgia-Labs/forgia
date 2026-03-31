@@ -605,7 +605,16 @@ func (p *VaultProvider) callValidate(ctx context.Context, params map[string]any)
 			return nil, fmt.Errorf("no SDD files found for %s", fdID)
 		}
 	} else {
-		sddFiles = []string{path}
+		// Validate path is within vault directory to prevent path traversal.
+		cleanPath := filepath.Clean(path)
+		if !filepath.IsAbs(cleanPath) {
+			cleanPath = filepath.Join(p.vault.Dir(), cleanPath)
+		}
+		vaultDir := filepath.Clean(p.vault.Dir())
+		if !strings.HasPrefix(cleanPath, vaultDir+string(filepath.Separator)) && cleanPath != vaultDir {
+			return nil, fmt.Errorf("path must be within vault directory")
+		}
+		sddFiles = []string{cleanPath}
 	}
 
 	var results []map[string]any
