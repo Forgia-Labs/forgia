@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   modules: [
+    '@nuxt/content',
     '@nuxt/eslint',
     '@nuxt/ui'
   ],
@@ -9,10 +10,15 @@ export default defineNuxtConfig({
     enabled: true
   },
 
+  app: {
+    baseURL: '/forgia/'
+  },
+
   css: ['~/assets/css/main.css'],
 
   routeRules: {
-    '/': { prerender: true }
+    '/': { prerender: true },
+    '/docs/**': { prerender: true }
   },
 
   compatibilityDate: '2025-01-15',

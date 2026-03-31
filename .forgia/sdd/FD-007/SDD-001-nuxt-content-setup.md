@@ -2,9 +2,9 @@
 id: "SDD-001"
 fd: "FD-007"
 title: "Nuxt Content Setup & Docs Layout"
-status: planned
-agent: ""
-assigned_to: ""
+status: assigned
+agent: "claude-code"
+assigned_to: "claude"
 created: "2026-04-01"
 started: ""
 completed: ""
