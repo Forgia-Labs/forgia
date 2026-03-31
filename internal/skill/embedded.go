@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/Deepzima/forgia/internal/mcp"
+	"github.com/forgia-labs/forgia/internal/mcp"
 )
 
 // EmbeddedSkill wraps a markdown slash command from the embedded filesystem.

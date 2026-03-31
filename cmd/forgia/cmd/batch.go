@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Deepzima/forgia/internal/beads"
-	"github.com/Deepzima/forgia/internal/config"
-	"github.com/Deepzima/forgia/internal/runner"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/beads"
+	"github.com/forgia-labs/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/runner"
+	"github.com/forgia-labs/forgia/internal/vault"
 	"github.com/spf13/cobra"
 )
 

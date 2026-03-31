@@ -57,7 +57,7 @@ Claude Code (o qualsiasi MCP client) si connette via stdio. Input: JSON-RPC tool
 ### Library (per tool esterni)
 
 ```go
-import "github.com/Deepzima/forgia/internal/vault"
+import "github.com/forgia-labs/forgia/internal/vault"
 
 v, _ := vault.Open(".")
 for fd := range v.FDs() {

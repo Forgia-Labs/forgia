@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Deepzima/forgia/internal/guardrails"
+	"github.com/forgia-labs/forgia/internal/guardrails"
 )
 
 // SeccompProfile represents a Docker seccomp profile.

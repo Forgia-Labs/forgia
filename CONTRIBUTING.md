@@ -3,7 +3,7 @@
 ## Getting Started
 
 ```bash
-git clone git@github.com:Deepzima/forgia.git
+git clone git@github.com:forgia-labs/forgia.git
 cd forgia
 mise trust
 mise run go:build

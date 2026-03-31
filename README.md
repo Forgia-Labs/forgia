@@ -32,12 +32,12 @@ You ──→ FD (what & why) ──→ SDD (how, for agents) ──→ Agent �
 
 ```bash
 # Prerequisites: Go 1.25+, mise, docker (optional for OpenHands)
-git clone git@github.com:Deepzima/forgia.git
+git clone git@github.com:forgia-labs/forgia.git
 cd forgia
 
 # Build the Go binary
 mise run go:build
-# Or: go install github.com/Deepzima/forgia/cmd/forgia@latest
+# Or: go install github.com/forgia-labs/forgia/cmd/forgia@latest
 
 # Trust the mise config to allow running tasks
 mise trust

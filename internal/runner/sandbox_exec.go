@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/config"
-	"github.com/Deepzima/forgia/internal/guardrails"
-	"github.com/Deepzima/forgia/internal/sandbox"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/guardrails"
+	"github.com/forgia-labs/forgia/internal/sandbox"
+	"github.com/forgia-labs/forgia/internal/vault"
 )
 
 // SandboxExec wraps SDD execution in a sandbox if configured.

@@ -8,11 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Deepzima/forgia/internal/beads"
-	"github.com/Deepzima/forgia/internal/board"
-	"github.com/Deepzima/forgia/internal/boardsync"
-	"github.com/Deepzima/forgia/internal/config"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/beads"
+	"github.com/forgia-labs/forgia/internal/board"
+	"github.com/forgia-labs/forgia/internal/boardsync"
+	"github.com/forgia-labs/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/vault"
 )
 
 var (

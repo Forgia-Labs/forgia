@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	forgia "github.com/Deepzima/forgia"
-	"github.com/Deepzima/forgia/internal/beads"
-	"github.com/Deepzima/forgia/internal/config"
-	"github.com/Deepzima/forgia/internal/knowledge"
+	forgia "github.com/forgia-labs/forgia"
+	"github.com/forgia-labs/forgia/internal/beads"
+	"github.com/forgia-labs/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/knowledge"
 	"github.com/spf13/cobra"
 )
 

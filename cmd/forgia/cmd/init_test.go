@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	forgia "github.com/Deepzima/forgia"
+	forgia "github.com/forgia-labs/forgia"
 )
 
 func TestCopyEmbeddedFS_CreatesFiles(t *testing.T) {

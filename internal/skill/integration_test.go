@@ -8,8 +8,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/Deepzima/forgia/internal/mcp"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/mcp"
+	"github.com/forgia-labs/forgia/internal/vault"
 )
 
 // --- Composite skill integration tests (SDD-007 suite 3) ---

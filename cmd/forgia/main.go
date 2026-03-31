@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/Deepzima/forgia/cmd/forgia/cmd"
+	"github.com/forgia-labs/forgia/cmd/forgia/cmd"
 )
 
 func main() {

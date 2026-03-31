@@ -1,0 +1,10 @@
+# Forgia vault — protect critical files
+# Edit this file to match your team structure
+
+.forgia/constitution.md           @DeepZima
+.forgia/guardrails/               @DeepZima
+.forgia/architecture/             @DeepZima
+.forgia/contexts/                 @DeepZima
+.forgia/config.toml               @DeepZima
+.forgia/fd/                       *
+.forgia/sdd/                      *

@@ -1,4 +1,4 @@
-module github.com/Deepzima/forgia
+module github.com/forgia-labs/forgia
 
 go 1.25
 

@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/vault"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 )

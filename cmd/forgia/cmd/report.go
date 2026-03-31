@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Deepzima/forgia/internal/beads"
-	"github.com/Deepzima/forgia/internal/runner"
+	"github.com/forgia-labs/forgia/internal/beads"
+	"github.com/forgia-labs/forgia/internal/runner"
 )
 
 // writeExecReport marshals the ExecResult to JSON and writes it to logsDir.

@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/Deepzima/forgia/internal/board"
-	"github.com/Deepzima/forgia/internal/vault"
+	"github.com/forgia-labs/forgia/internal/board"
+	"github.com/forgia-labs/forgia/internal/vault"
 )
 
 // Compile-time interface satisfaction checks.

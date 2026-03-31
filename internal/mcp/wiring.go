@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/Deepzima/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/config"
 )
 
 // shellMetachars contains characters that indicate shell injection attempts.

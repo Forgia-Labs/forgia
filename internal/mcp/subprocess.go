@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Deepzima/forgia/internal/config"
+	"github.com/forgia-labs/forgia/internal/config"
 )
 
 // Compile-time interface check.
