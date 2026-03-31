@@ -1,7 +1,8 @@
 ---
 title: "Forgia Documentation"
 description: "Spec-driven development framework. Forge specs into code."
-navigation: false
+navigation:
+  title: "Overview"
 ---
 
 # Forgia
