@@ -31,11 +31,15 @@ You ──→ FD (what & why) ──→ SDD (how, for agents) ──→ Agent �
 ## Quick Start
 
 ```bash
-# Prerequisites: Go 1.25+, mise, docker (optional for OpenHands)
+# Install with mise (recommended)
+mise use github:forgia-labs/forgia
+
+# Or download binary from GitHub Releases
+# https://github.com/forgia-labs/forgia/releases
+
+# Or build from source
 git clone git@github.com:forgia-labs/forgia.git
 cd forgia
-
-# Build the Go binary
 mise run go:build
 # Or: go install github.com/forgia-labs/forgia/cmd/forgia@latest
 
