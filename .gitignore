@@ -24,3 +24,6 @@ build/
 node_modules/
 dist/
 .nuxt/
+.data/
+.output/
+dist/
