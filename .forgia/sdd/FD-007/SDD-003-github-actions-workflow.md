@@ -2,12 +2,12 @@
 id: "SDD-003"
 fd: "FD-007"
 title: "GitHub Actions Workflow — Build & Deploy to GitHub Pages"
-status: planned
-agent: ""
-assigned_to: ""
+status: done
+agent: "claude-code"
+assigned_to: "claude"
 created: "2026-04-01"
-started: ""
-completed: ""
+started: "2026-04-01"
+completed: "2026-04-01"
 tags: ["ci-cd", "github-actions", "github-pages"]
 ---
 
@@ -172,24 +172,26 @@ jobs:
 
 ### Agent
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-01
+- **Completed**: 2026-04-01
+- **Duration**: ~5 minutes
 
 ### Decisions
 
-1. <!-- decision 1: what and why -->
+1. **pnpm version 10** — confirmed from `pnpm-lock.yaml` lockfileVersion `9.0` which corresponds to pnpm 10. The SDD suggested verifying before hardcoding; inspection of the lockfile confirmed the correct version.
+2. **No `workflow_dispatch`** — kept trigger exclusively on `v*.*.*` tags per the SDD constraint. Adding `workflow_dispatch` would require a future FD change.
+3. **Workflow matches SDD template exactly** — no deviations needed; the spec was precise and complete.
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: 71128c7
+- **PR**: federicoibba/79-documentation-website (in-progress)
 - **Files created/modified**:
   - `.github/workflows/docs.yml`
 
 ### Retrospective
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: The SDD provided a near-complete YAML template — implementation was verification + copy with one confirmed value (pnpm version).
+- **What didn't**: Nothing. This was a well-scoped SDD.
+- **Suggestions for future FDs**: Workflow SDDs benefit from the "expected YAML structure" pattern used here — it removes ambiguity and speeds execution significantly.
