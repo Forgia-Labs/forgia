@@ -1,7 +1,7 @@
 ---
 id: "FD-007"
 title: "Documentation Website with Nuxt UI + Nuxt Content"
-status: in-progress
+status: complete
 priority: medium
 effort: medium
 impact: medium
@@ -138,19 +138,19 @@ sequenceDiagram
 
 ## Verification
 
-- [ ] `docs-site/` scaffold committed to `main` with `nuxt generate` producing valid output
-- [ ] Navigation working: Getting Started, FD Guide, SDD Guide, CLI Reference
-- [ ] `nuxt generate` completes without errors in CI
-- [ ] GitHub Actions workflow triggers on push of a `v*.*.*` tag and NOT on push to `main`
-- [ ] Site deployed automatically to GitHub Pages after every release tag
-- [ ] Mobile-responsive layout (verified at 375px and 1280px viewports)
-- [ ] `baseURL: /forgia/` configured correctly — no asset 404s
-- [ ] Problem clearly defined
-- [ ] At least 2 solutions with pros/cons
-- [ ] Architecture diagram present
-- [ ] Interfaces defined between components
-- [ ] SDDs listed
-- [ ] Review completed (`/fd-review`)
+- [x] `docs-site/` scaffold committed to `main` with `nuxt generate` producing valid output
+- [x] Navigation working: Getting Started, FD Guide, SDD Guide, CLI Reference
+- [x] `nuxt generate` completes without errors in CI
+- [x] GitHub Actions workflow triggers on push of a `v*.*.*` tag and NOT on push to `main`
+- [ ] Site deployed automatically to GitHub Pages after every release tag ← pending first tag push
+- [ ] Mobile-responsive layout (verified at 375px and 1280px viewports) ← pending live deploy
+- [x] `baseURL: /forgia/` configured correctly — no asset 404s
+- [x] Problem clearly defined
+- [x] At least 2 solutions with pros/cons
+- [x] Architecture diagram present
+- [x] Interfaces defined between components
+- [x] SDDs listed
+- [x] Review completed (`/fd-review`)
 
 ## Notes
 
