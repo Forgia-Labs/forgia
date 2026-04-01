@@ -1,60 +1,109 @@
-# Nuxt Starter Template
+# Forgia Docs
 
-[![Nuxt UI](https://img.shields.io/badge/Made%20with-Nuxt%20UI-00DC82?logo=nuxt&labelColor=020420)](https://ui.nuxt.com)
+Documentation website for [Forgia](https://github.com/forgia-labs/forgia) — built with Nuxt 4, Nuxt UI v4, and Nuxt Content v3. Deployed to GitHub Pages on every `v*.*.*` release tag.
 
-Use this template to get started with [Nuxt UI](https://ui.nuxt.com) quickly.
+Live site: **https://forgia-labs.github.io/forgia/**
 
-- [Live demo](https://starter-template.nuxt.dev/)
-- [Documentation](https://ui.nuxt.com/docs/getting-started/installation/nuxt)
+## Stack
 
-<a href="https://starter-template.nuxt.dev/" target="_blank">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png">
-    <img alt="Nuxt Starter Template" src="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png" width="830" height="466">
-  </picture>
-</a>
+- **Nuxt 4** — Vue framework with static generation (`nuxt generate`)
+- **Nuxt UI v4** — component library (navigation, TOC, layout)
+- **Nuxt Content v3** — Markdown-based content with SQLite index at build time
+- **pnpm 10** — package manager
 
-> The starter template for Vue is on https://github.com/nuxt-ui-templates/starter-vue.
-
-## Quick Start
-
-```bash [Terminal]
-npm create nuxt@latest -- -t ui
-```
-
-## Deploy your own
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-name=starter&repository-url=https%3A%2F%2Fgithub.com%2Fnuxt-ui-templates%2Fstarter&demo-image=https%3A%2F%2Fui.nuxt.com%2Fassets%2Ftemplates%2Fnuxt%2Fstarter-dark.png&demo-url=https%3A%2F%2Fstarter-template.nuxt.dev%2F&demo-title=Nuxt%20Starter%20Template&demo-description=A%20minimal%20template%20to%20get%20started%20with%20Nuxt%20UI.)
-
-## Setup
-
-Make sure to install the dependencies:
+## Local development
 
 ```bash
 pnpm install
+pnpm dev        # http://localhost:3000/forgia/
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
+## Build & verify
 
 ```bash
-pnpm dev
+pnpm generate   # builds to .output/public/
+pnpm smoke      # verifies critical pages exist in .output/public/
+pnpm typecheck  # TypeScript check
+pnpm lint       # ESLint
 ```
 
-## Production
+---
 
-Build the application for production:
+## Adding documentation pages
+
+All content lives in `content/docs/`. Nuxt Content reads every `.md` file there and assigns it a URL path matching the directory structure.
+
+### 1. Create the Markdown file
+
+```
+content/docs/<section>/<page-name>.md
+```
+
+Every file needs this frontmatter:
+
+```md
+---
+title: "Page Title"
+description: "One-sentence description — used for SEO and link previews."
+navigation:
+  title: "Sidebar label"   # optional: shorter label for the left nav
+---
+
+# Page Title
+
+Content here...
+```
+
+### 2. URL mapping
+
+| File path | URL |
+|-----------|-----|
+| `content/docs/getting-started/installation.md` | `/docs/getting-started/installation` |
+| `content/docs/cli/exec.md` | `/docs/cli/exec` |
+| `content/docs/my-section/index.md` | `/docs/my-section` |
+
+### 3. Add a new section
+
+Create an `index.md` for the section landing page:
+
+```
+content/docs/my-section/index.md
+```
+
+The left sidebar automatically picks up the section and its pages from the frontmatter — no manual registration needed.
+
+### 4. Internal links
+
+Use root-relative paths without the `/forgia/` baseURL prefix — Nuxt rewrites them at build time:
+
+```md
+See [Creating an FD](/docs/fd/creating) for details.   ✅
+See [Creating an FD](/forgia/docs/fd/creating) ...     ❌ don't hardcode the baseURL
+```
+
+### 5. Table of contents
+
+The right sidebar TOC is built automatically from the `##` and `###` headings in the page. No extra configuration needed — just use proper heading hierarchy.
+
+### 6. Verify before pushing
 
 ```bash
-pnpm build
+pnpm generate && pnpm smoke
 ```
 
-Locally preview production build:
+The smoke test checks that all critical pages rendered correctly. If you added a new required page, add it to `scripts/smoke-test.sh`.
+
+---
+
+## Deployment
+
+The site deploys automatically when a release tag matching `v*.*.*` is pushed:
 
 ```bash
-pnpm preview
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+The GitHub Actions workflow (`.github/workflows/docs.yml`) runs `pnpm generate`, uploads `.output/public/`, and deploys to GitHub Pages via OIDC — no PAT required.
+
+Pushing to `main` or opening a PR does **not** trigger a deploy.
