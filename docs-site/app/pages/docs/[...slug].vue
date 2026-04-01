@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { TocLink } from '@nuxt/content'
+
 definePageMeta({
   layout: 'docs'
 })
@@ -17,6 +19,15 @@ const { data: page } = await useAsyncData(
 if (!page.value) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found' })
 }
+
+// Share the TOC with the layout via shared state keyed by the current route path.
+// The layout reads this same key to render the right-hand table of contents.
+const tocLinks = useState<TocLink[]>('docs-toc', () => page.value?.body?.toc?.links ?? [])
+
+// Keep the shared state in sync when navigating between pages on the client.
+watch(page, (newPage) => {
+  tocLinks.value = newPage?.body?.toc?.links ?? []
+}, { immediate: true })
 
 useSeoMeta({
   title: page.value.title,
