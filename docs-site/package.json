@@ -1,0 +1,32 @@
+{
+  "name": "site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck",
+    "smoke": "bash scripts/smoke-test.sh"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.100",
+    "@iconify-json/simple-icons": "^1.2.75",
+    "@nuxt/content": "^3.5.0",
+    "@nuxt/ui": "^4.6.0",
+    "better-sqlite3": "^12.8.0",
+    "nuxt": "^4.4.2",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@iconify-json/heroicons": "^1.2.3",
+    "@nuxt/eslint": "^1.15.2",
+    "@types/better-sqlite3": "^7.6.13",
+    "eslint": "^10.1.0",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.2.6"
+  }
+}
