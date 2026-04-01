@@ -16,6 +16,7 @@ import (
 
 var batchDryRun bool
 var batchRunner string
+var batchSandbox string
 
 var batchCmd = &cobra.Command{
 	Use:   "batch <FD-NNN> [--runner=claude|openhands] [--dry-run]",
@@ -213,6 +214,7 @@ func runBatchDryRun(cmd *cobra.Command, fdID string, sddFiles []string) error {
 
 func init() {
 	batchCmd.Flags().BoolVar(&batchDryRun, "dry-run", false, "Simulate execution without modifying files")
-	batchCmd.Flags().StringVar(&batchRunner, "runner", "", "Runner da usare (claude|openhands)")
+	batchCmd.Flags().StringVar(&batchRunner, "runner", "", "Runner backend (claude, openhands)")
+	batchCmd.Flags().StringVar(&batchSandbox, "sandbox", "", "Sandbox provider (none, docker, apple-container)")
 	rootCmd.AddCommand(batchCmd)
 }

@@ -19,6 +19,7 @@ var (
 	execDryRun bool
 	execRunner string
 	execMode   string
+	execSandbox string
 )
 
 var execCmd = &cobra.Command{
@@ -35,6 +36,7 @@ func init() {
 	execCmd.Flags().BoolVar(&execDryRun, "dry-run", false, "Simulate execution without modifying files")
 	execCmd.Flags().StringVar(&execRunner, "runner", "", "Runner backend (claude, dry-run)")
 	execCmd.Flags().StringVar(&execMode, "mode", "", "Guardrail mode (off, careful, freeze, guard)")
+	execCmd.Flags().StringVar(&execSandbox, "sandbox", "", "Sandbox provider (none, docker, apple-container)")
 	rootCmd.AddCommand(execCmd)
 }
 
@@ -126,7 +128,57 @@ func execSDD(cmd *cobra.Command, sddFile string) error {
 		}
 	}
 
-	// Resolve runner.
+	// Resolve sandbox: CLI flag > config > none.
+	sandboxMode := execSandbox
+	if sandboxMode == "" && cfg != nil {
+		sandboxMode = cfg.Runner.Claude.Sandbox
+	}
+
+	// Try sandbox execution first.
+	if sandboxMode != "" && sandboxMode != "none" {
+		var claudeCfg *config.ClaudeRunnerConfig
+		if cfg != nil {
+			claudeCfg = &cfg.Runner.Claude
+		} else {
+			claudeCfg = &config.ClaudeRunnerConfig{}
+		}
+		claudeCfg.Sandbox = sandboxMode // override with CLI flag
+
+		fmt.Printf("→ Executing %s in sandbox: %s\n", sddID, sandboxMode)
+		result, execErr := runner.SandboxExec(ctx, sdd, claudeCfg, v)
+		if result != nil {
+			fmt.Printf("\n=== Execution Complete ===\n")
+			fmt.Printf("  SDD:      %s\n", result.SDD)
+			fmt.Printf("  Duration: %ds\n", result.DurationSecs)
+			fmt.Printf("  Status:   %s\n", result.Status)
+			fmt.Printf("  Runner:   %s\n", result.Runner)
+
+			if result.File == "" {
+				result.File = sddFile
+			}
+			logsDir := filepath.Join(".forgia", "logs")
+			reportPath, reportErr := writeExecReport(result, logsDir)
+			if reportErr != nil {
+				logger.WarnContext(ctx, "failed to write exec report", "error", reportErr)
+			} else {
+				fmt.Printf("  Report:   %s\n", reportPath)
+			}
+		}
+		if result != nil && result.Status == "success" {
+			sdd.Status = vault.SDDDone
+			if err := v.UpdateSDD(ctx, sdd); err != nil {
+				logger.WarnContext(ctx, "failed to update SDD status", "error", err)
+			}
+			bc := beads.NewClient()
+			closeBeadsTask(ctx, bc, sddID)
+		}
+		if execErr != nil {
+			return fmt.Errorf("sandbox execution failed: %w", execErr)
+		}
+		return nil
+	}
+
+	// Host execution (no sandbox).
 	resolvedRunner := execRunner
 	if resolvedRunner == "" && cfg != nil {
 		resolvedRunner = cfg.Runner.Default

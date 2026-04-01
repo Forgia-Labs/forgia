@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/forgia-labs/forgia/internal/config"
@@ -40,13 +41,44 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		workDir, _ = filepath.Abs(cfg.SandboxWorkspaceMount)
 	}
 
+	// Validate workspace is not an excluded path.
+	excluded := sandbox.ExcludedHostPaths()
+	homeDir, _ := os.UserHomeDir()
+	for _, ep := range excluded {
+		expanded := strings.Replace(ep, "~", homeDir, 1)
+		if strings.HasPrefix(workDir, expanded) {
+			return nil, fmt.Errorf("sandbox: workspace %q is inside excluded path %q", workDir, ep)
+		}
+	}
+
 	// Build mounts.
 	mounts := sandbox.WorkspaceMounts(workDir)
+
+	// Optional: mount ~/.claude read-only for Max OAuth auth.
+	if cfg.SandboxMountClaude {
+		claudeDir := filepath.Join(homeDir, ".claude")
+		if _, err := os.Stat(claudeDir); err == nil {
+			mounts = append(mounts, sandbox.Mount{
+				Source:   claudeDir,
+				Target:   "/root/.claude",
+				ReadOnly: true,
+			})
+			logger.InfoContext(ctx, "mounting ~/.claude read-only for auth")
+		}
+	}
 
 	// Build environment.
 	env := map[string]string{}
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		env["ANTHROPIC_API_KEY"] = key
+	}
+
+	// Custom env from config (model override, base URL, etc.).
+	for _, e := range cfg.SandboxEnv {
+		k, v, ok := strings.Cut(e, "=")
+		if ok {
+			env[k] = v
+		}
 	}
 
 	// Seccomp (Docker only).
