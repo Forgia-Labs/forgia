@@ -9,7 +9,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="px-6 py-16 bg-primary/10">
+  <section class="px-6 py-16 mb-16 bg-primary/10">
     <div class="max-w-2xl mx-auto flex flex-col items-center text-center gap-6">
       <p
         v-if="heading"

@@ -11,8 +11,8 @@ useHead({
   }
 })
 
-const title = 'Forgia — Il Framework per Agenti AI'
-const description = 'Forgia è il framework che dà agli agenti AI un posto dove lavorare su task reali.'
+const title = 'Forgia — Spec-Driven Development for AI Agents'
+const description = 'Forgia is the framework that gives AI agents a structured place to work on real tasks.'
 
 useSeoMeta({
   title,

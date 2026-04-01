@@ -4,36 +4,36 @@ import FeaturesSection from '~/components/FeaturesSection.vue'
 import CtaSection from '~/components/CtaSection.vue'
 
 const heroProps = {
-  headline: 'Il Framework per Agenti AI',
-  subline: 'Un posto dove gli agenti lavorano su task reali.',
-  ctaLabel: 'Vedi su GitHub',
-  ctaHref: 'https://github.com/forgia-labs/forgia'
+  headline: 'Spec-Driven Development for AI Agents',
+  subline: 'Forge feature designs into agent-ready specs. Ship with confidence.',
+  ctaLabel: 'Get Started',
+  ctaHref: '/docs/getting-started'
 }
 
 const featuresData = [
   {
     icon: 'i-heroicons-cpu-chip',
-    title: 'Agenti su Task Reali',
-    description: 'Gli agenti AI non simulano — completano task concreti in un ambiente strutturato.'
+    title: 'Agents on Real Tasks',
+    description: 'AI agents don\'t simulate — they complete concrete tasks in a structured, auditable environment.'
   },
   {
     icon: 'i-heroicons-wrench-screwdriver',
-    title: 'Framework Componibile',
-    description: 'Costruisci pipeline modulari con interfacce chiare e testabili.'
+    title: 'Composable Framework',
+    description: 'Build modular pipelines with clear interfaces and testable execution contracts.'
   },
   {
     icon: 'i-heroicons-bolt',
-    title: 'Veloce da Avviare',
-    description: 'Da zero a primo agente in pochi minuti, senza configurazione boilerplate.'
+    title: 'Fast to Start',
+    description: 'From zero to first agent in minutes — no boilerplate configuration required.'
   }
 ]
 
 const ctaProps = {
-  heading: 'Pronto a forgiare?',
-  label: 'Inizia la Forgiatura',
-  href: 'https://github.com/forgia-labs/forgia',
-  secondaryLabel: 'Leggi la documentazione',
-  secondaryHref: '/docs'
+  heading: 'Ready to forge?',
+  label: 'Read the docs',
+  href: '/docs',
+  secondaryLabel: 'View on GitHub',
+  secondaryHref: 'https://github.com/forgia-labs/forgia'
 }
 </script>
 
@@ -42,7 +42,7 @@ const ctaProps = {
     <HeroSection v-bind="heroProps" />
     <FeaturesSection
       :features="featuresData"
-      heading="Perché Forgia?"
+      heading="Why Forgia?"
     />
     <CtaSection v-bind="ctaProps" />
   </div>
