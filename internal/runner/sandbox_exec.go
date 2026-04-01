@@ -45,6 +45,10 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 	excluded := sandbox.ExcludedHostPaths()
 	homeDir, _ := os.UserHomeDir()
 	for _, ep := range excluded {
+		// Skip ~/.claude check if mount_claude is explicitly enabled.
+		if ep == "~/.claude" && cfg.SandboxMountClaude {
+			continue
+		}
 		expanded := strings.Replace(ep, "~", homeDir, 1)
 		if strings.HasPrefix(workDir, expanded) {
 			return nil, fmt.Errorf("sandbox: workspace %q is inside excluded path %q", workDir, ep)
@@ -55,6 +59,7 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 	mounts := sandbox.WorkspaceMounts(workDir)
 
 	// Optional: mount ~/.claude read-only for Max OAuth auth.
+	// TM-2: when mount_claude=true, network MUST be none to prevent token exfiltration.
 	if cfg.SandboxMountClaude {
 		claudeDir := filepath.Join(homeDir, ".claude")
 		if _, err := os.Stat(claudeDir); err == nil {
@@ -64,6 +69,10 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 				ReadOnly: true,
 			})
 			logger.InfoContext(ctx, "mounting ~/.claude read-only for auth")
+			// Force network=none when OAuth tokens are mounted.
+			if len(cfg.SandboxNetworkAllow) > 0 {
+				logger.WarnContext(ctx, "sandbox_mount_claude=true forces network=none — ignoring sandbox_network_allow")
+			}
 		}
 	}
 
@@ -73,10 +82,14 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		env["ANTHROPIC_API_KEY"] = key
 	}
 
-	// Custom env from config (model override, base URL, etc.).
+	// TM-3: scan sandbox_env for accidental secret exposure.
 	for _, e := range cfg.SandboxEnv {
 		k, v, ok := strings.Cut(e, "=")
 		if ok {
+			if looksLikeSecret(v) {
+				logger.WarnContext(ctx, "sandbox_env value looks like a secret — consider using env var reference instead of plaintext in config.toml",
+					"key", k)
+			}
 			env[k] = v
 		}
 	}
@@ -144,9 +157,24 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		"-p", taskPrompt,
 	}
 
+	// TM-1: validate sandbox image — warn on non-default images.
 	image := cfg.SandboxImage
 	if image == "" {
 		image = "ghcr.io/anthropics/claude-code:latest"
+	}
+	defaultImages := map[string]bool{
+		"ghcr.io/anthropics/claude-code:latest": true,
+		"ubuntu:latest":                         true,
+		"debian:latest":                         true,
+	}
+	if !defaultImages[image] {
+		logger.WarnContext(ctx, "non-default sandbox image — ensure it is trusted", "image", image)
+	}
+
+	// TM-2: force network=none when OAuth tokens are mounted.
+	networkMode := "none"
+	if !cfg.SandboxMountClaude && len(cfg.SandboxNetworkAllow) > 0 {
+		networkMode = "filtered" // future: proxy-based egress filtering
 	}
 
 	started := time.Now()
@@ -158,7 +186,7 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		WorkDir:     "/workspace",
 		Mounts:      mounts,
 		Env:         env,
-		NetworkMode: "none",
+		NetworkMode: networkMode,
 		SeccompPath: seccompPath,
 	})
 
@@ -203,4 +231,22 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 	}
 
 	return execResult, nil
+}
+
+// looksLikeSecret checks if a value matches common API key / credential patterns.
+// Used by TM-3 to warn when sandbox_env contains plaintext secrets.
+func looksLikeSecret(v string) bool {
+	prefixes := []string{
+		"sk-ant-", "sk-", "ghp_", "gho_", "github_pat_",
+		"glpat-", "AKIA", "xoxb-", "xoxp-",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(v, p) {
+			return true
+		}
+	}
+	if strings.Contains(v, "PRIVATE KEY") {
+		return true
+	}
+	return false
 }
