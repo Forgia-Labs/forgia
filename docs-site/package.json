@@ -9,7 +9,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "smoke": "bash scripts/smoke-test.sh"
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.100",
