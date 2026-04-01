@@ -53,13 +53,13 @@ OpenHands runs headlessly in Docker, reads the SDD, implements the component, an
 
 ## Batch execution
 
-Run all SDDs in an FD in parallel:
+Run all pending SDDs in an FD sequentially:
 
 ```bash
 forgia batch FD-001
 ```
 
-Forgia maps each SDD to an OpenHands container and runs them concurrently. Use this for independent SDDs (no interface dependencies between them).
+Forgia runs each pending SDD in order, one at a time. It stops immediately on the first failure — fix the failing SDD and re-run before continuing with the rest.
 
 ## Direct execution
 

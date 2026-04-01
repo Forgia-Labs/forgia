@@ -8,60 +8,38 @@ navigation:
 # forgia status
 
 ```
-forgia status [FD-NNN]
-```
-
-Displays the current state of FDs and SDDs in the vault.
-
-## Project overview
-
-```bash
 forgia status
 ```
 
-Output:
+Displays the full Forgia dashboard: all Feature Designs, their SDDs, active ops tasks, recent executions, and knowledge layer stats.
+
+## Output
 
 ```
-FD-001  user-authentication        approved     3 SDDs (1 done, 1 in-progress, 1 planned)
-FD-002  api-rate-limiting          planned      —
-FD-003  dashboard-redesign         closed       4 SDDs (4 done)
+=== Forgia Dashboard ===
+
+ID       TITLE                    STATUS      PRIORITY  AUTHOR
+──       ─────                    ──────      ────────  ──────
+FD-001   user-authentication      approved    medium    alice
+  └ SDD-001  auth-middleware       done
+  └ SDD-002  token-storage         in-progress
+  └ SDD-003  integration-wiring    ready
+FD-002   api-rate-limiting        planned     low       bob
+FD-003   dashboard-redesign       closed      high      alice
+  └ SDD-001  layout                done
 ```
 
-## FD detail
+Additional sections appear when data is present:
 
-```bash
-forgia status FD-001
-```
-
-Output:
-
-```
-FD-001: User Authentication with JWT
-  Status:   approved
-  Reviewed: true (claude)
-  Created:  2026-03-15
-
-  SDDs:
-    SDD-001  auth-middleware       done         agent: claude-code
-    SDD-002  token-storage         in-progress  agent: openhands
-    SDD-003  integration-wiring    planned      —
-```
-
-## Filtering
-
-```bash
-# Only show in-progress work
-forgia status --filter in-progress
-
-# Only show planned FDs
-forgia status --filter planned
-```
+- **Active Tasks** — ops tasks from `.forgia/ops/active/`
+- **Last Executions** — recent `forgia exec` runs from `.forgia/logs/`
+- **Beads** — ready tasks from the Beads circuit (if `bd` is installed)
+- **Knowledge Layer** — codebase index stats (if `codebase-memory-mcp` is installed)
 
 ## Exit codes
 
 | Code | Meaning |
 |------|---------|
-| `0` | All FDs complete or closed |
-| `1` | One or more FDs have SDDs in `planned` or `in-progress` state |
+| `0` | Command completed (regardless of FD states) |
 
-Use exit code 1 in CI to gate releases on complete work.
+Use `/fd-status` in Claude Code for the same dashboard inside a session.

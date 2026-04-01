@@ -8,7 +8,7 @@ navigation:
 # forgia exec
 
 ```
-forgia exec <path-to-sdd> [--agent <backend>] [--dry-run]
+forgia exec <sdd-file> [--runner <backend>] [--mode <guardrail-mode>] [--dry-run]
 ```
 
 Runs a single SDD file through the configured agent runtime.
@@ -19,34 +19,42 @@ Runs a single SDD file through the configured agent runtime.
 forgia exec .forgia/sdd/FD-001/SDD-002-token-storage.md
 ```
 
-Uses the agent specified in the SDD frontmatter (`agent: openhands`). If no agent is set, prompts for one.
+Uses the runner configured in `.forgia/config.toml` (defaults to `claude`).
 
 ## Flags
 
 | Flag | Description |
 |------|-------------|
-| `--agent` | Override the agent backend (`openhands`, `claude-code`, `manual`) |
-| `--dry-run` | Print what would be executed without running it |
-| `--timeout` | Maximum execution time (default: 30m) |
-| `--worktree` | Run in an isolated git worktree |
+| `--runner` | Runner backend: `claude` (default) or `dry-run` |
+| `--mode` | Guardrail enforcement mode: `off`, `careful`, `freeze`, `guard` |
+| `--dry-run` | Simulate execution without modifying files |
 
-## Worktree isolation
+## Guardrail modes
+
+| Mode | Behaviour |
+|------|-----------|
+| `off` | No guardrail checks |
+| `careful` | Warn on violations |
+| `freeze` | Block writes outside allowed dirs |
+| `guard` | Block all writes not explicitly allowed |
+
+## Dry run
 
 ```bash
-forgia exec .forgia/sdd/FD-001/SDD-001.md --worktree
+forgia exec .forgia/sdd/FD-001/SDD-001.md --dry-run
 ```
 
-Creates a temporary git worktree, runs the agent there, and merges changes back on success. Prevents partially-applied changes from polluting the working tree if the agent fails midway.
+Runs a feasibility simulation and prints a GO / NO-GO report without touching any files.
 
 ## Batch execution
 
-To run all SDDs for an FD in parallel:
+To run all pending SDDs for an FD sequentially:
 
 ```bash
 forgia batch FD-001
 ```
 
-`forgia batch` calls `forgia exec` for each SDD, respecting the dependency order implied by interface contracts. SDDs with no dependencies on each other run concurrently.
+`forgia batch` calls `forgia exec` for each pending SDD in order. It stops immediately on the first failure — fix the failing SDD before continuing.
 
 ## After execution
 

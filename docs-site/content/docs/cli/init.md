@@ -8,16 +8,17 @@ navigation:
 # forgia init
 
 ```
-forgia init [--lang <language>] [--vault <path>]
+forgia init [--dir <path>]
 ```
 
-Initializes the Forgia vault in the current directory.
+Initializes the Forgia vault in the current directory (or `--dir`). Safe to re-run — existing files are never overwritten.
 
 ## What gets created
 
 ```
 .forgia/
 ├── constitution.md          # Immutable project rules
+├── config.toml              # Runner and tool configuration
 ├── dev-guide/
 │   ├── principles/
 │   │   ├── clean-code.md
@@ -33,30 +34,33 @@ Initializes the Forgia vault in the current directory.
 │       └── sdd-template.md
 ├── guardrails/
 │   └── deny.toml            # Denied file patterns and operations
-└── learnings/               # Retrospective feed for future FDs
+├── logs/                    # Execution reports (gitignored)
+└── .gitignore
 ```
 
 ## Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--lang` | auto-detected | Primary language (`go`, `ts`, `rust`, `python`) |
-| `--vault` | `.forgia/` | Custom vault path |
-| `--force` | false | Overwrite existing vault |
+| `--dir` | `.` | Target directory to initialize |
 
 ## Language detection
 
-Without `--lang`, `forgia init` inspects the project root for:
+`forgia init` automatically detects the project stack by inspecting the target directory:
 
-- `go.mod` → Go
-- `package.json` → TypeScript/JavaScript
-- `Cargo.toml` → Rust
-- `pyproject.toml` / `requirements.txt` → Python
+| File found | Convention loaded |
+|------------|------------------|
+| `go.mod` | Go |
+| `package.json` | Node/TypeScript |
+| `Cargo.toml` | Rust |
+| `pyproject.toml` / `requirements.txt` | Python |
+| `Makefile` / `mise.toml` | Shell |
 
-The detected language determines which `lang/` convention file is generated.
+The detected language determines which `dev-guide/lang/` convention file is generated. No flag needed.
 
 ## After init
 
 1. Review and customize `.forgia/constitution.md` — add project-specific rules
 2. Review `.forgia/guardrails/deny.toml` — add paths that agents must never modify
-3. Create your first FD: `/fd-new "description"`
+3. Commit `.forgia/` to share with your team
+4. Create your first FD: `forgia skill fd-new`
