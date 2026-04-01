@@ -1,5 +1,4 @@
 <script setup lang="ts">
-const { navDirFromPath } = useContentHelpers()
 const { data: navigation } = await useAsyncData('navigation', () => queryCollectionNavigation('content'))
 
 const links = computed(() => navigation.value ?? [])
