@@ -2,12 +2,12 @@
 id: "SDD-004"
 fd: "FD-007"
 title: "Integration Wiring & E2E Verification"
-status: planned
-agent: ""
-assigned_to: ""
+status: done
+agent: "claude-code"
+assigned_to: "claude"
 created: "2026-04-01"
-started: ""
-completed: ""
+started: "2026-04-01"
+completed: "2026-04-01"
 tags: ["integration", "e2e", "verification"]
 ---
 
@@ -141,26 +141,29 @@ PAGES=(
 
 ### Agent
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-01
+- **Completed**: 2026-04-01
+- **Duration**: ~10 minutes
 
 ### Decisions
 
-1. <!-- decision 1: what and why -->
+1. **Output path is `docs-site/.output/public/` without baseURL prefix** — Nuxt puts generated files at the root of `.output/public/`; the `/forgia/` baseURL is a serving concern for GitHub Pages, not a filesystem path. Smoke test checks `docs/index.html`, not `forgia/docs/index.html`.
+2. **Hardcoded-baseURL check on content source files** — the SDD's "broken internal links" check was interpreted as: content `.md` files must not contain `/forgia/docs/` paths (they should use `/docs/`). Nuxt handles the prefix at build time.
+3. **`local` variables not used in script** — the SDD mentioned using `local` variables, but the script is top-level (no functions), so `local` doesn't apply. Variables scoped naturally.
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: a346c0e
+- **PR**: federicoibba/79-documentation-website (in-progress)
 - **Files created/modified**:
-  - `docs-site/scripts/smoke-test.sh`
+  - `docs-site/scripts/smoke-test.sh` (new, executable)
   - `docs-site/package.json` (added `smoke` script)
-  - `.github/workflows/docs.yml` (added smoke test step)
+  - `.github/workflows/docs.yml` (added `Smoke test` step)
+- **Local smoke test result**: `Smoke test passed — 9 pages verified` ✓
 
 ### Retrospective
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: Running `nuxt generate` first, then the smoke test, confirmed all 18 pages were produced. The stale `.output/` correctly failed on first run — proving the test has real detection value.
+- **What didn't**: The full E2E (tag push → GitHub Pages live) is a manual step pending first release tag.
+- **Suggestions for future FDs**: Adding a `pnpm run smoke` step to the local dev checklist (not just CI) would catch content regressions before they reach the tag.
