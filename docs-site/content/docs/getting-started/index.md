@@ -19,4 +19,5 @@ Forgia has three components: a Go CLI binary, a vault (`.forgia/`) in each proje
 ## Next steps
 
 - [Installation](/docs/getting-started/installation) — build the binary and install slash commands
+- [Feature Lifecycle](/docs/getting-started/lifecycle) — how a feature moves through Forgia and which spells connect each phase
 - [Your first feature](/docs/getting-started/first-feature) — full end-to-end walkthrough
