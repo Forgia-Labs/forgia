@@ -45,7 +45,9 @@ type ClaudeRunnerConfig struct {
 	SandboxWorkspaceMount string  `toml:"sandbox_workspace_mount"`
 	SandboxSeccompFromDeny bool   `toml:"sandbox_seccomp_from_deny"`
 	SandboxAuditLog      bool     `toml:"sandbox_audit_log"`
-	SandboxServicesFromSDD bool   `toml:"sandbox_services_from_sdd"`
+	SandboxServicesFromSDD bool     `toml:"sandbox_services_from_sdd"`
+	SandboxEnv             []string `toml:"sandbox_env"`          // extra env vars: ["KEY=VALUE"]
+	SandboxMountClaude     bool     `toml:"sandbox_mount_claude"` // mount ~/.claude read-only (for Max OAuth auth)
 
 	// Agent Teams.
 	TeamEnabled      bool   `toml:"team_enabled"`

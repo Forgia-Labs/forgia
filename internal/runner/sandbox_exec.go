@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/forgia-labs/forgia/internal/config"
@@ -40,14 +41,44 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		workDir, _ = filepath.Abs(cfg.SandboxWorkspaceMount)
 	}
 
+	// Validate workspace is not an excluded path.
+	excluded := sandbox.ExcludedHostPaths()
+	homeDir, _ := os.UserHomeDir()
+	for _, ep := range excluded {
+		expanded := strings.Replace(ep, "~", homeDir, 1)
+		if strings.HasPrefix(workDir, expanded) {
+			return nil, fmt.Errorf("sandbox: workspace %q is inside excluded path %q", workDir, ep)
+		}
+	}
+
 	// Build mounts.
 	mounts := sandbox.WorkspaceMounts(workDir)
 
 	// Build environment.
 	env := map[string]string{}
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		env["ANTHROPIC_API_KEY"] = key
+
+	// TM-3: scan sandbox_env for accidental secret exposure.
+	for _, e := range cfg.SandboxEnv {
+		k, v, ok := strings.Cut(e, "=")
+		if ok {
+			if looksLikeSecret(v) {
+				logger.WarnContext(ctx, "sandbox_env value looks like a secret — consider using env var reference instead of plaintext in config.toml",
+					"key", k)
+			}
+			env[k] = v
+		}
 	}
+
+	// --- Auth resolution: keychain → API key → error ---
+	var authCleanup func()
+	authMethod := resolveAuth(ctx, logger, homeDir, env, &mounts, &authCleanup)
+	if authCleanup != nil {
+		defer authCleanup()
+	}
+	if authMethod == "none" {
+		return nil, fmt.Errorf("sandbox: no credentials available\n  ✗ No macOS keychain credentials found\n  ✗ No ANTHROPIC_API_KEY in environment\n\n  Fix: run 'claude /login' on host, or export ANTHROPIC_API_KEY")
+	}
+	logger.InfoContext(ctx, "auth resolved", "method", authMethod)
 
 	// Seccomp (Docker only).
 	var seccompPath string
@@ -100,24 +131,43 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		defer cleanup()
 	}
 
-	// Build system context.
-	systemCtx, _ := BuildSystemContext(ctx, v)
-
 	// Build command to run inside sandbox.
-	taskPrompt := buildTaskPrompt(sdd)
-	command := []string{
-		"claude",
-		"--dangerously-skip-permissions",
-		"--append-system-prompt", systemCtx,
-		"-p", taskPrompt,
+	// Claude runs inside /workspace which is the project root.
+	// It reads the SDD file directly from the mounted filesystem —
+	// no need to pass the full spec as a command-line argument.
+	sddPath := sdd.FilePath
+	if sddPath == "" {
+		sddPath = filepath.Join(".forgia", "sdd", sdd.FD, sdd.ID+".md")
 	}
 
+	prompt := fmt.Sprintf("Read and execute the SDD at %s — first read .forgia/constitution.md and .forgia/guardrails/deny.toml for project rules, then implement the Scope section exactly, verify Acceptance Criteria, and update the Work Log when done.", sddPath)
+
+	// Note: the Docker image ENTRYPOINT is ["claude"], so we only pass arguments here.
+	command := []string{
+		"--dangerously-skip-permissions",
+		"-p",
+		prompt,
+	}
+
+	// TM-1: validate sandbox image — warn on non-default images.
 	image := cfg.SandboxImage
 	if image == "" {
-		image = "ghcr.io/anthropics/claude-code:latest"
+		image = "forgia-sandbox:latest"
+	}
+	defaultImages := map[string]bool{
+		"forgia-sandbox:latest": true,
+		"node:22-slim":         true,
+	}
+	if !defaultImages[image] {
+		logger.WarnContext(ctx, "non-default sandbox image — ensure it is trusted", "image", image)
 	}
 
+	// Network: Claude needs API access. Use host network for now.
+	// TODO: implement egress proxy that allows only api.anthropic.com
+	networkMode := "host"
+
 	started := time.Now()
+	fmt.Printf("→ Executing %s in sandbox...\n", sdd.ID)
 
 	// Run in sandbox.
 	result, err := provider.Run(ctx, sandbox.RunOpts{
@@ -126,7 +176,7 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		WorkDir:     "/workspace",
 		Mounts:      mounts,
 		Env:         env,
-		NetworkMode: "none",
+		NetworkMode: networkMode,
 		SeccompPath: seccompPath,
 	})
 
@@ -147,6 +197,8 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 			OutputBytes: outputBytes,
 		})
 	}
+
+	fmt.Printf("→ Auth: credentials cleaned up ✓\n")
 
 	execResult := &ExecResult{
 		SDD:          sdd.ID,
@@ -172,3 +224,74 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 
 	return execResult, nil
 }
+
+// resolveAuth tries: 1) sandbox-auth dir (forgia sandbox login), 2) ANTHROPIC_API_KEY env, 3) none.
+// Returns the method used ("sandbox-auth", "api-key", "none") and optionally adds mounts/env.
+func resolveAuth(ctx context.Context, logger *slog.Logger, homeDir string, env map[string]string, mounts *[]sandbox.Mount, cleanup *func()) string {
+	// 1. Try persisted sandbox auth (from `forgia sandbox login`).
+	authDir := filepath.Join(homeDir, ".forgia", "sandbox-auth", "claude")
+
+	// Check for .env file (API key stored via `forgia sandbox login`).
+	envPath := filepath.Join(authDir, ".env")
+	if data, err := os.ReadFile(envPath); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			k, v, ok := strings.Cut(line, "=")
+			if ok && k != "" && v != "" {
+				env[k] = v
+			}
+		}
+		fmt.Printf("→ Auth: using sandbox credentials (API key) ✓\n")
+		return "sandbox-auth"
+	}
+
+	// Check for OAuth credentials (from `forgia sandbox login`).
+	if info, err := os.Stat(authDir); err == nil && info.IsDir() {
+		entries, _ := os.ReadDir(authDir)
+		if len(entries) > 0 {
+			// Mount ~/.claude directory with OAuth session data.
+			// Claude needs read-write — it writes session/cache files.
+			// .claude.json must NOT be mounted separately as a file —
+			// Docker file mounts break when Claude truncates and rewrites.
+			*mounts = append(*mounts, sandbox.Mount{
+				Source:   authDir,
+				Target:   "/home/forgia/.claude",
+				ReadOnly: false,
+			})
+			fmt.Printf("→ Auth: using sandbox credentials (OAuth) ✓\n")
+			return "sandbox-auth"
+		}
+	}
+
+	// 2. Try ANTHROPIC_API_KEY from host environment.
+	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+		env["ANTHROPIC_API_KEY"] = key
+		fmt.Printf("→ Auth: using ANTHROPIC_API_KEY from env ✓\n")
+		return "api-key"
+	}
+
+	// 3. Check if already set via sandbox_env config.
+	if _, ok := env["ANTHROPIC_API_KEY"]; ok {
+		fmt.Printf("→ Auth: using ANTHROPIC_API_KEY from config ✓\n")
+		return "api-key"
+	}
+
+	return "none"
+}
+
+// looksLikeSecret checks if a value matches common API key / credential patterns.
+func looksLikeSecret(v string) bool {
+	prefixes := []string{
+		"sk-ant-", "sk-", "ghp_", "gho_", "github_pat_",
+		"glpat-", "AKIA", "xoxb-", "xoxp-",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(v, p) {
+			return true
+		}
+	}
+	if strings.Contains(v, "PRIVATE KEY") {
+		return true
+	}
+	return false
+}
+

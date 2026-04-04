@@ -116,5 +116,8 @@ func ExcludedHostPaths() []string {
 		"~/.netrc",
 		"~/.npmrc",
 		"~/.pypirc",
+		"~/.config/gh",   // TM-4: GitHub CLI tokens
+		"~/.kube",        // TM-4: Kubernetes credentials
+		"~/.claude",      // TM-4: Claude OAuth tokens (unless sandbox_mount_claude)
 	}
 }

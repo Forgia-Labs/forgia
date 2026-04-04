@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 )
 
@@ -41,12 +42,17 @@ func (p *DockerProvider) Run(ctx context.Context, opts RunOpts) (*RunResult, err
 	p.logger.InfoContext(ctx, "running in Docker",
 		"image", opts.Image, "command", opts.Command)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	output, err := cmd.CombinedOutput()
+	p.logger.InfoContext(ctx, "docker args", "args", args)
 
-	result := &RunResult{
-		Output: output,
-	}
+	// Use exec.Command (not CommandContext) — the Cobra context may cancel
+	// prematurely, killing the Docker container before Claude finishes.
+	cmd := exec.Command("docker", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+
+	result := &RunResult{}
 
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -82,9 +88,14 @@ func (p *DockerProvider) buildArgs(opts RunOpts) []string {
 		args = append(args, "-w", opts.WorkDir)
 	}
 
-	// Network isolation.
-	if opts.NetworkMode == "none" {
+	// Network mode.
+	switch opts.NetworkMode {
+	case "none":
 		args = append(args, "--network=none")
+	case "host":
+		args = append(args, "--network=host")
+	case "", "bridge":
+		// Docker default — no flag needed.
 	}
 
 	// Seccomp profile (Docker-only).
