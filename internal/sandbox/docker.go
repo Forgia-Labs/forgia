@@ -42,9 +42,11 @@ func (p *DockerProvider) Run(ctx context.Context, opts RunOpts) (*RunResult, err
 	p.logger.InfoContext(ctx, "running in Docker",
 		"image", opts.Image, "command", opts.Command)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	// Pass stdout/stderr to terminal so user sees Claude's progress.
-	// Stdin is nil (closed) — Claude in -p mode doesn't need interactive input.
+	p.logger.InfoContext(ctx, "docker args", "args", args)
+
+	// Use exec.Command (not CommandContext) — the Cobra context may cancel
+	// prematurely, killing the Docker container before Claude finishes.
+	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

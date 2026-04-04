@@ -142,8 +142,8 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 
 	prompt := fmt.Sprintf("Read and execute the SDD at %s — first read .forgia/constitution.md and .forgia/guardrails/deny.toml for project rules, then implement the Scope section exactly, verify Acceptance Criteria, and update the Work Log when done.", sddPath)
 
+	// Note: the Docker image ENTRYPOINT is ["claude"], so we only pass arguments here.
 	command := []string{
-		"claude",
 		"--dangerously-skip-permissions",
 		"-p",
 		prompt,
@@ -249,20 +249,14 @@ func resolveAuth(ctx context.Context, logger *slog.Logger, homeDir string, env m
 		entries, _ := os.ReadDir(authDir)
 		if len(entries) > 0 {
 			// Mount ~/.claude directory with OAuth session data.
+			// Claude needs read-write — it writes session/cache files.
+			// .claude.json must NOT be mounted separately as a file —
+			// Docker file mounts break when Claude truncates and rewrites.
 			*mounts = append(*mounts, sandbox.Mount{
 				Source:   authDir,
 				Target:   "/home/forgia/.claude",
-				ReadOnly: false, // Claude needs to write session/cache files
+				ReadOnly: false,
 			})
-			// Mount .claude.json config if it exists in the auth dir.
-			claudeJSON := filepath.Join(authDir, ".claude.json")
-			if _, err := os.Stat(claudeJSON); err == nil {
-				*mounts = append(*mounts, sandbox.Mount{
-					Source:   claudeJSON,
-					Target:   "/home/forgia/.claude.json",
-					ReadOnly: true,
-				})
-			}
 			fmt.Printf("→ Auth: using sandbox credentials (OAuth) ✓\n")
 			return "sandbox-auth"
 		}
