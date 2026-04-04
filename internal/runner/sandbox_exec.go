@@ -2,15 +2,10 @@ package runner
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -140,12 +135,16 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 	systemCtx, _ := BuildSystemContext(ctx, v)
 
 	// Build command to run inside sandbox.
+	// Positional prompt (not -p) + --dangerously-skip-permissions = agentic tool execution.
+	// -p is print-only mode (text response, no tool calls).
+	// Positional prompt with --dangerously-skip-permissions enters agentic mode and auto-exits.
 	taskPrompt := buildTaskPrompt(sdd)
 	command := []string{
 		"claude",
 		"--dangerously-skip-permissions",
 		"--append-system-prompt", systemCtx,
-		"-p", taskPrompt,
+		"-p",
+		taskPrompt,
 	}
 
 	// TM-1: validate sandbox image — warn on non-default images.
@@ -161,8 +160,9 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		logger.WarnContext(ctx, "non-default sandbox image — ensure it is trusted", "image", image)
 	}
 
-	// Network: always none when auth credentials are mounted.
-	networkMode := "none"
+	// Network: Claude needs API access. Use host network for now.
+	// TODO: implement egress proxy that allows only api.anthropic.com
+	networkMode := "host"
 
 	started := time.Now()
 	fmt.Printf("→ Executing %s in sandbox...\n", sdd.ID)
@@ -223,98 +223,53 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 	return execResult, nil
 }
 
-// resolveAuth tries: 1) macOS keychain extract → temp .credentials.json, 2) ANTHROPIC_API_KEY env, 3) none.
-// Returns the method used ("keychain", "api-key", "none") and optionally adds mounts/env.
+// resolveAuth tries: 1) sandbox-auth dir (forgia sandbox login), 2) ANTHROPIC_API_KEY env, 3) none.
+// Returns the method used ("sandbox-auth", "api-key", "none") and optionally adds mounts/env.
 func resolveAuth(ctx context.Context, logger *slog.Logger, homeDir string, env map[string]string, mounts *[]sandbox.Mount, cleanup *func()) string {
-	// 1. Try macOS keychain — extract Claude OAuth credentials to temp file.
-	if runtime.GOOS == "darwin" {
-		if creds, err := extractKeychainCredentials(ctx, logger); err == nil && creds != "" {
-			// Write to temp dir with random name.
-			tmpDir, err := os.MkdirTemp("", "forgia-auth-")
-			if err == nil {
-				credPath := filepath.Join(tmpDir, ".credentials.json")
-				if err := os.WriteFile(credPath, []byte(creds), 0o600); err == nil {
-					// Mount temp dir as ~/.claude in container (read-only).
-					*mounts = append(*mounts, sandbox.Mount{
-						Source:   tmpDir,
-						Target:   "/home/forgia/.claude",
-						ReadOnly: true,
-					})
-					// Cleanup: remove temp dir after exec.
-					*cleanup = func() {
-						os.RemoveAll(tmpDir)
-						logger.InfoContext(ctx, "keychain credentials cleaned up")
-					}
-					fmt.Printf("→ Auth: extracting from macOS keychain... ✓\n")
-					return "keychain"
-				}
-				os.RemoveAll(tmpDir)
+	// 1. Try persisted sandbox auth (from `forgia sandbox login`).
+	authDir := filepath.Join(homeDir, ".forgia", "sandbox-auth", "claude")
+
+	// Check for .env file (API key stored via `forgia sandbox login`).
+	envPath := filepath.Join(authDir, ".env")
+	if data, err := os.ReadFile(envPath); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			k, v, ok := strings.Cut(line, "=")
+			if ok && k != "" && v != "" {
+				env[k] = v
 			}
+		}
+		fmt.Printf("→ Auth: using sandbox credentials (API key) ✓\n")
+		return "sandbox-auth"
+	}
+
+	// Check for OAuth credentials (from `forgia sandbox login --method=oauth`).
+	if info, err := os.Stat(authDir); err == nil && info.IsDir() {
+		entries, _ := os.ReadDir(authDir)
+		if len(entries) > 0 {
+			*mounts = append(*mounts, sandbox.Mount{
+				Source:   authDir,
+				Target:   "/home/forgia/.claude",
+				ReadOnly: true,
+			})
+			fmt.Printf("→ Auth: using sandbox credentials (OAuth) ✓\n")
+			return "sandbox-auth"
 		}
 	}
 
-	// 2. Try ANTHROPIC_API_KEY from environment.
+	// 2. Try ANTHROPIC_API_KEY from host environment.
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		env["ANTHROPIC_API_KEY"] = key
 		fmt.Printf("→ Auth: using ANTHROPIC_API_KEY from env ✓\n")
 		return "api-key"
 	}
 
-	// 3. Check if already set via sandbox_env.
+	// 3. Check if already set via sandbox_env config.
 	if _, ok := env["ANTHROPIC_API_KEY"]; ok {
 		fmt.Printf("→ Auth: using ANTHROPIC_API_KEY from config ✓\n")
 		return "api-key"
 	}
 
 	return "none"
-}
-
-// extractKeychainCredentials reads Claude OAuth tokens from macOS keychain
-// and returns a JSON string suitable for .credentials.json.
-// Returns empty string if no credentials found or not on macOS.
-func extractKeychainCredentials(ctx context.Context, logger *slog.Logger) (string, error) {
-	// Claude Code stores OAuth tokens in macOS keychain under the service "claude.ai".
-	// Try common keychain service names.
-	services := []string{"claude.ai", "claude-code", "anthropic.com"}
-
-	for _, svc := range services {
-		cmd := exec.CommandContext(ctx, "security", "find-generic-password",
-			"-s", svc, "-w")
-		out, err := cmd.Output()
-		if err != nil {
-			continue
-		}
-
-		token := strings.TrimSpace(string(out))
-		if token == "" {
-			continue
-		}
-
-		// Check if the token is JSON (structured credential) or a raw token.
-		if strings.HasPrefix(token, "{") {
-			// Already JSON — use as-is.
-			logger.InfoContext(ctx, "found keychain credentials", "service", svc, "format", "json")
-			return token, nil
-		}
-
-		// Raw token — wrap in .credentials.json format.
-		// Claude Code expects: {"oauth": {"accessToken": "...", ...}}
-		creds := map[string]any{
-			"oauth": map[string]any{
-				"accessToken":  token,
-				"refreshToken": "",
-				"expiresAt":    time.Now().Add(1 * time.Hour).Unix(),
-			},
-		}
-		data, err := json.Marshal(creds)
-		if err != nil {
-			continue
-		}
-		logger.InfoContext(ctx, "found keychain credentials", "service", svc, "format", "raw-token")
-		return string(data), nil
-	}
-
-	return "", fmt.Errorf("no Claude credentials in keychain")
 }
 
 // looksLikeSecret checks if a value matches common API key / credential patterns.
@@ -334,9 +289,3 @@ func looksLikeSecret(v string) bool {
 	return false
 }
 
-// randomHex returns a random hex string of the given byte length.
-func randomHex(n int) string {
-	b := make([]byte, n)
-	rand.Read(b)
-	return hex.EncodeToString(b)
-}

@@ -173,6 +173,7 @@ func execSDD(cmd *cobra.Command, sddFile string) error {
 			closeBeadsTask(ctx, bc, sddID)
 		}
 		if execErr != nil {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", execErr)
 			return fmt.Errorf("sandbox execution failed: %w", execErr)
 		}
 		return nil
