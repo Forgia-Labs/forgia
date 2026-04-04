@@ -131,19 +131,22 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 		defer cleanup()
 	}
 
-	// Build system context.
-	systemCtx, _ := BuildSystemContext(ctx, v)
-
 	// Build command to run inside sandbox.
-	// -p (print mode) + --dangerously-skip-permissions = autonomous agentic execution.
-	// The prompt is a positional argument (not a flag value).
-	taskPrompt := buildTaskPrompt(sdd)
+	// Claude runs inside /workspace which is the project root.
+	// It reads the SDD file directly from the mounted filesystem —
+	// no need to pass the full spec as a command-line argument.
+	sddPath := sdd.FilePath
+	if sddPath == "" {
+		sddPath = filepath.Join(".forgia", "sdd", sdd.FD, sdd.ID+".md")
+	}
+
+	prompt := fmt.Sprintf("Read and execute the SDD at %s — first read .forgia/constitution.md and .forgia/guardrails/deny.toml for project rules, then implement the Scope section exactly, verify Acceptance Criteria, and update the Work Log when done.", sddPath)
+
 	command := []string{
 		"claude",
 		"--dangerously-skip-permissions",
-		"--append-system-prompt", systemCtx,
 		"-p",
-		taskPrompt,
+		prompt,
 	}
 
 	// TM-1: validate sandbox image — warn on non-default images.

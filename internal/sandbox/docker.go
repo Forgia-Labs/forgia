@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 )
 
@@ -42,11 +43,14 @@ func (p *DockerProvider) Run(ctx context.Context, opts RunOpts) (*RunResult, err
 		"image", opts.Image, "command", opts.Command)
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	output, err := cmd.CombinedOutput()
+	// Pass stdout/stderr to terminal so user sees Claude's progress.
+	// Stdin is nil (closed) — Claude in -p mode doesn't need interactive input.
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	result := &RunResult{
-		Output: output,
-	}
+	err := cmd.Run()
+
+	result := &RunResult{}
 
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -82,9 +86,14 @@ func (p *DockerProvider) buildArgs(opts RunOpts) []string {
 		args = append(args, "-w", opts.WorkDir)
 	}
 
-	// Network isolation.
-	if opts.NetworkMode == "none" {
+	// Network mode.
+	switch opts.NetworkMode {
+	case "none":
 		args = append(args, "--network=none")
+	case "host":
+		args = append(args, "--network=host")
+	case "", "bridge":
+		// Docker default — no flag needed.
 	}
 
 	// Seccomp profile (Docker-only).
