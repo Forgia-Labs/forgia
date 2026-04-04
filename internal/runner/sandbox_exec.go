@@ -135,9 +135,8 @@ func SandboxExec(ctx context.Context, sdd *vault.SDD, cfg *config.ClaudeRunnerCo
 	systemCtx, _ := BuildSystemContext(ctx, v)
 
 	// Build command to run inside sandbox.
-	// Positional prompt (not -p) + --dangerously-skip-permissions = agentic tool execution.
-	// -p is print-only mode (text response, no tool calls).
-	// Positional prompt with --dangerously-skip-permissions enters agentic mode and auto-exits.
+	// -p (print mode) + --dangerously-skip-permissions = autonomous agentic execution.
+	// The prompt is a positional argument (not a flag value).
 	taskPrompt := buildTaskPrompt(sdd)
 	command := []string{
 		"claude",
@@ -242,15 +241,25 @@ func resolveAuth(ctx context.Context, logger *slog.Logger, homeDir string, env m
 		return "sandbox-auth"
 	}
 
-	// Check for OAuth credentials (from `forgia sandbox login --method=oauth`).
+	// Check for OAuth credentials (from `forgia sandbox login`).
 	if info, err := os.Stat(authDir); err == nil && info.IsDir() {
 		entries, _ := os.ReadDir(authDir)
 		if len(entries) > 0 {
+			// Mount ~/.claude directory with OAuth session data.
 			*mounts = append(*mounts, sandbox.Mount{
 				Source:   authDir,
 				Target:   "/home/forgia/.claude",
-				ReadOnly: true,
+				ReadOnly: false, // Claude needs to write session/cache files
 			})
+			// Mount .claude.json config if it exists in the auth dir.
+			claudeJSON := filepath.Join(authDir, ".claude.json")
+			if _, err := os.Stat(claudeJSON); err == nil {
+				*mounts = append(*mounts, sandbox.Mount{
+					Source:   claudeJSON,
+					Target:   "/home/forgia/.claude.json",
+					ReadOnly: true,
+				})
+			}
 			fmt.Printf("→ Auth: using sandbox credentials (OAuth) ✓\n")
 			return "sandbox-auth"
 		}

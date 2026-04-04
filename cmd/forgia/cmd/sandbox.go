@@ -184,12 +184,24 @@ func loginOAuth(_ interface{}, authDir, runner string, logger *slog.Logger) erro
 	}
 
 	// Verify credentials were saved.
-	credPath := filepath.Join(authDir, ".credentials.json")
-	if _, err := os.Stat(credPath); err != nil {
-		// Check if there's any auth file.
-		entries, _ := os.ReadDir(authDir)
-		if len(entries) == 0 {
-			return fmt.Errorf("no credentials saved — login may not have completed")
+	entries, _ := os.ReadDir(authDir)
+	if len(entries) == 0 {
+		return fmt.Errorf("no credentials saved — login may not have completed")
+	}
+
+	// Restore .claude.json from backup if Claude created one during login.
+	backupDir := filepath.Join(authDir, "backups")
+	if bEntries, err := os.ReadDir(backupDir); err == nil {
+		for _, be := range bEntries {
+			if strings.HasPrefix(be.Name(), ".claude.json.backup") {
+				backupPath := filepath.Join(backupDir, be.Name())
+				destPath := filepath.Join(authDir, ".claude.json")
+				if data, err := os.ReadFile(backupPath); err == nil {
+					os.WriteFile(destPath, data, 0o600)
+					fmt.Println("  Restored .claude.json from backup")
+				}
+				break
+			}
 		}
 	}
 
